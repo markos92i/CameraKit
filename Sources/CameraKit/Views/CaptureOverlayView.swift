@@ -46,14 +46,14 @@ struct CaptureOverlayView: View {
         let height = width * ratio
         let radius = (width / 85.6) * 3.03
 
-        return Image(uiImage: photo)
-            .resizable()
-            .scaledToFit()
-            .frame(width: width, height: height)
-            .clipShape(.rect(cornerRadius: radius))
-            .overlay(RoundedRectangle(cornerRadius: radius)
-                .stroke(.white.opacity(0.7), lineWidth: 2))
-            .padding()
+        return CardCaptureAnimationView(
+            photo: photo,
+            width: width,
+            height: height,
+            radius: radius,
+            quadrilateral: camera.featureMetadata.first,
+            containerSize: geometry.size
+        )
     }
 
     private func textPreview(photo: UIImage, geometry: GeometryProxy) -> some View {
