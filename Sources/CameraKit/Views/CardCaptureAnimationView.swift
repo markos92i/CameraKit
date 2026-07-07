@@ -10,13 +10,15 @@ import SwiftUI
 /// Animates the captured card from its detected perspective position to the final flat preview.
 struct CardCaptureAnimationView: View {
     let photo: UIImage
-    let width: CGFloat
-    let height: CGFloat
-    let radius: CGFloat
+    @Binding var phase: CapturePhase
     let quadrilateral: FeatureMetadata?
     let containerSize: CGSize
 
     @State private var progress: CGFloat = 0
+
+    private var width: CGFloat { containerSize.width * 0.8 }
+    private var height: CGFloat { width * (photo.size.height / photo.size.width) }
+    private var radius: CGFloat { (width / 85.6) * 3.03 }
 
     var body: some View {
         Image(uiImage: photo)
@@ -31,18 +33,21 @@ struct CardCaptureAnimationView: View {
             .modifier(
                 PerspectiveLiftEffect(
                     progress: progress,
-                    initialTransform: computeInitialTransform()
+                    initialTransform: initialTransform
                 )
             )
             .onAppear {
+                phase = .animating
                 withAnimation(.spring(duration: 0.6, bounce: 0.15)) {
                     progress = 1
+                } completion: {
+                    phase = .ready
                 }
             }
     }
 
-    /// Pre-computes the CATransform3D for progress=0 (the detected perspective).
-    private func computeInitialTransform() -> CATransform3D {
+    /// Pre-computed initial transform (perspective from detected quad).
+    private var initialTransform: CATransform3D {
         guard let quad = quadrilateral else { return CATransform3DIdentity }
         let points = CGPointUtils.convertToAspectFill(
             quad.flippedPoints,
@@ -56,10 +61,7 @@ struct CardCaptureAnimationView: View {
             y: (containerSize.height - height) / 2
         )
 
-        // Source quad in view-local coordinates
         let localQuad = points.map { CGPoint(x: $0.x - destOrigin.x, y: $0.y - destOrigin.y) }
-
-        // Destination corners (the flat rect in view-local space)
         let viewRect: [CGPoint] = [
             .zero,
             CGPoint(x: width, y: 0),
@@ -71,8 +73,9 @@ struct CardCaptureAnimationView: View {
     }
 }
 
+// MARK: - Perspective Lift Effect
+
 /// Interpolates a CATransform3D from an initial perspective transform to identity.
-/// The interpolation is per-element on the 3x3 projective submatrix, which is cheap per frame.
 struct PerspectiveLiftEffect: GeometryEffect {
     var progress: CGFloat
     let initialTransform: CATransform3D
@@ -83,7 +86,6 @@ struct PerspectiveLiftEffect: GeometryEffect {
     }
 
     func effectValue(size: CGSize) -> ProjectionTransform {
-        // Linearly interpolate each relevant element toward identity
         let t = progress
         var result = CATransform3DIdentity
         result.m11 = lerp(initialTransform.m11, 1.0, t)
@@ -103,16 +105,13 @@ struct PerspectiveLiftEffect: GeometryEffect {
     }
 }
 
+// MARK: - Homography Solver
+
 /// Solves a 2D homography (8-parameter perspective transform) between two quadrilaterals.
 enum HomographySolver {
-    /// Returns a CATransform3D that maps the source quad to the destination quad.
     static func solve(from src: [CGPoint], to dst: [CGPoint]) -> CATransform3D {
         guard src.count == 4, dst.count == 4 else { return CATransform3DIdentity }
 
-        // Build the 8x8 linear system for the homography:
-        // For each point (x,y) -> (u,v):
-        //   u = (h0*x + h1*y + h2) / (h6*x + h7*y + 1)
-        //   v = (h3*x + h4*y + h5) / (h6*x + h7*y + 1)
         var A = [[Double]](repeating: [Double](repeating: 0, count: 8), count: 8)
         var b = [Double](repeating: 0, count: 8)
 
@@ -128,7 +127,7 @@ enum HomographySolver {
         let h = gaussianElimination(A, b)
         guard h.count == 8 else { return CATransform3DIdentity }
 
-        // Map homography to CATransform3D for ProjectionTransform:
+        // Map to CATransform3D for ProjectionTransform:
         // [x' y' w'] = [x y 1] * [[m11 m12 m14], [m21 m22 m24], [m41 m42 m44]]
         var t = CATransform3DIdentity
         t.m11 = CGFloat(h[0])
@@ -149,7 +148,6 @@ enum HomographySolver {
         var b = rhs
 
         for col in 0..<n {
-            // Partial pivoting
             var maxRow = col
             var maxVal = abs(A[col][col])
             for row in (col + 1)..<n where abs(A[row][col]) > maxVal {

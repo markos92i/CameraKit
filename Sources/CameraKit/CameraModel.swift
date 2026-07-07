@@ -132,6 +132,9 @@ public final class CameraModel: Camera {
     /// The source of video content for a camera preview.
     public var lastVideo: URL? = nil
 
+    /// Editable text items from text capture mode.
+    public var editableTexts: [EditableTextItem] = []
+
     /// The initial configuration for this camera instance.
     private let configuration: CameraConfiguration
 
@@ -192,6 +195,7 @@ public final class CameraModel: Camera {
         detectionTask = nil
         lastPhoto = nil
         lastVideo = nil
+        editableTexts = []
         featureMetadata = []
     }
     

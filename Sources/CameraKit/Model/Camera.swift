@@ -105,6 +105,9 @@ public protocol Camera: AnyObject, Sendable {
 
     /// The source of video content for a camera preview.
     var lastVideo: URL? { get set }
+
+    /// Editable text items from the text capture mode (populated after capture, editable by user).
+    var editableTexts: [EditableTextItem] { get set }
     
     /// Synchronize the state of the camera with the persisted values.
     func syncState() async

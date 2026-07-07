@@ -41,6 +41,7 @@ public class PreviewCameraModel: Camera {
     public var thumbnail: CGImage? = nil
     public var lastPhoto: UIImage? = nil
     public var lastVideo: URL? = nil
+    public var editableTexts: [EditableTextItem] = []
 
     public init(captureMode: CaptureMode = .photo, status: CameraStatus = .unknown) {
         self.captureMode = captureMode
@@ -84,6 +85,7 @@ public class PreviewCameraModel: Camera {
     public func clearCapture() {
         lastPhoto = nil
         lastVideo = nil
+        editableTexts = []
         featureMetadata = []
     }
 }

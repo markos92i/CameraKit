@@ -140,8 +140,12 @@ public struct CameraView<CameraModel: Camera>: View {
             Task {
                 if let lastPhoto = camera.lastPhoto, let url = lastPhoto.store(quality: 0.8) {
                     switch camera.imageFilter {
-                    case .cards, .text:
+                    case .cards:
                         let regions = await recognizeText(in: lastPhoto)
+                        handler?(.document(url: url, regions: regions))
+                    case .text:
+                        // Use the user-edited texts from the capture list
+                        let regions = camera.editableTexts.map { TextRegion(text: $0.text, bounds: .zero) }
                         handler?(.document(url: url, regions: regions))
                     case .none:
                         handler?(.photo(url: url))
