@@ -230,6 +230,10 @@ public final class CameraModel: Camera {
         
         let lastFeature: FeatureMetadata? = featureMetadata.first
         
+        // Stop detection during capture and animation
+        detectionTask?.cancel()
+        detectionTask = nil
+        
         do {
             let photoFeatures = PhotoFeatures(isLivePhotoEnabled: isLivePhotoEnabled, qualityPrioritization: qualityPrioritization)
             let photo = try await captureService.capturePhoto(with: photoFeatures)

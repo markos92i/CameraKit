@@ -17,24 +17,26 @@ struct FeatureOverlayView: View {
     var body: some View {
         GeometryReader { geometry in
             ZStack {
-                ForEach(camera.featureMetadata) { data in
-                    let points = CGPointUtils.convertToAspectFill(data.flippedPoints, source: data.image.extent.size, target: geometry.size)
+                if camera.lastPhoto == nil {
+                    ForEach(camera.featureMetadata) { data in
+                        let points = CGPointUtils.convertToAspectFill(data.flippedPoints, source: data.image.extent.size, target: geometry.size)
 
-                    RoundedQuadrilateral(points: points, radius: data.radius)
-                        .stroke(.blue, style: .init(lineWidth: data.lineWidth))
-                        .fill(.blue.opacity(0.2))
+                        RoundedQuadrilateral(points: points, radius: data.radius)
+                            .stroke(.blue, style: .init(lineWidth: data.lineWidth))
+                            .fill(.blue.opacity(0.2))
 
-                    if data.type == .text, !data.description.isEmpty {
-                        let center = CGPointUtils.center(of: points)
-                        let angle = atan2(points[1].y - points[0].y, points[1].x - points[0].x)
-                        let width = hypot(points[1].x - points[0].x, points[1].y - points[0].y)
+                        if data.type == .text, !data.description.isEmpty {
+                            let center = CGPointUtils.center(of: points)
+                            let angle = atan2(points[1].y - points[0].y, points[1].x - points[0].x)
+                            let width = hypot(points[1].x - points[0].x, points[1].y - points[0].y)
 
-                        Text(data.description)
-                            .font(.system(size: min(width * 0.15, 14)))
-                            .foregroundStyle(.white)
-                            .shadow(color: .black, radius: 2)
-                            .rotationEffect(.radians(angle))
-                            .position(x: center.x, y: center.y)
+                            Text(data.description)
+                                .font(.system(size: min(width * 0.15, 14)))
+                                .foregroundStyle(.white)
+                                .shadow(color: .black, radius: 2)
+                                .rotationEffect(.radians(angle))
+                                .position(x: center.x, y: center.y)
+                        }
                     }
                 }
             }
