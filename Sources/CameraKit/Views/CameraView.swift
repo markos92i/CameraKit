@@ -10,9 +10,12 @@ import SwiftUI
 public struct CameraView<CameraModel: Camera>: View {
     @State private var camera: CameraModel
     private var handler: ((CaptureResult) -> Void)?
-                
+
     private var captured: Bool { camera.captureSnapshot != nil }
     private var disabled: Bool { camera.isProcessing || camera.status.disabled }
+
+    /// Zoom factor at the start of a pinch gesture.
+    @State private var zoomAtGestureStart: CGFloat = 1.0
         
     public init(camera: CameraModel, handler: ((CaptureResult) -> Void)? = nil) {
         self.camera = camera
@@ -43,6 +46,15 @@ public struct CameraView<CameraModel: Camera>: View {
             .simultaneousGesture(
                 DragGesture(minimumDistance: 50)
                     .onEnded { camera.swipeDirection = .init(size: $0.translation) }
+            )
+            .simultaneousGesture(
+                MagnifyGesture()
+                    .onChanged { value in
+                        Task { await camera.setZoom(zoomAtGestureStart * value.magnification) }
+                    }
+                    .onEnded { _ in
+                        zoomAtGestureStart = camera.zoomFactor
+                    }
             )
             .clipShape(.rect(cornerRadius: 30))
             .padding()

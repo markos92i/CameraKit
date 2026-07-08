@@ -58,6 +58,12 @@ public final class PreviewCameraModel: Camera {
 
     public func focusAndExpose(at point: CGPoint) async {}
 
+    public var zoomFactor: CGFloat = 1.0
+
+    public func setZoom(_ factor: CGFloat) async {
+        zoomFactor = max(1.0, min(factor, 10.0))
+    }
+
     public func capturePhoto() async -> Photo? {
         shouldFlashScreen = true
         withAnimation(.easeInOut(duration: 0.1)) { shouldFlashScreen = false }

@@ -291,6 +291,16 @@ public final class CameraModel: Camera {
         guard status == .running else { return }
         await captureService.focusAndExpose(at: point)
     }
+
+    /// The current zoom factor applied to the camera.
+    public private(set) var zoomFactor: CGFloat = 1.0
+
+    /// Sets the zoom factor, clamped to the device's supported range.
+    public func setZoom(_ factor: CGFloat) async {
+        guard status == .running else { return }
+        await captureService.setZoom(factor)
+        zoomFactor = await captureService.zoomFactor
+    }
     
     /// Sets the `showCaptureFeedback` state to indicate that capture is underway.
     private func flashScreen() {

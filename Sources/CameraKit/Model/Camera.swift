@@ -60,6 +60,12 @@ public protocol Camera: AnyObject, Observable, Sendable {
     
     /// An enum value that indicates the direction of the user's swipe gesture
     var swipeDirection: SwipeDirection { get set }
+
+    /// The current zoom factor applied to the camera.
+    var zoomFactor: CGFloat { get }
+
+    /// Sets the zoom factor, clamped to the device's supported range.
+    func setZoom(_ factor: CGFloat) async
         
     /// A Boolean value that indicates whether the camera is doing some process work.
     var isProcessing: Bool { get set }

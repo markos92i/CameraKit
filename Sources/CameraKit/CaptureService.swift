@@ -64,9 +64,9 @@ actor CaptureService {
     
     // An object the service uses to retrieve capture devices.
     private let deviceLookup = DeviceLookup()
-        
+
     // An object that monitors the state of the system-preferred camera.
-    // private let systemPreferredCamera = SystemPreferredCameraObserver()
+    private let systemPreferredCamera = SystemPreferredCameraObserver()
 
     // An object that monitors video device rotations.
     private var rotationCoordinator: AVCaptureDevice.RotationCoordinator!
@@ -424,6 +424,24 @@ actor CaptureService {
             print("Unable to perform focus and exposure operation. \(error)")
         }
     }
+
+    // MARK: - Zoom
+
+    /// The current zoom factor of the active device.
+    var zoomFactor: CGFloat { currentDevice.videoZoomFactor }
+
+    /// Sets the zoom factor, clamped to the device's supported range.
+    func setZoom(_ factor: CGFloat) {
+        let device = currentDevice
+        let clamped = min(max(factor, device.minAvailableVideoZoomFactor), device.maxAvailableVideoZoomFactor)
+        do {
+            try device.lockForConfiguration()
+            device.videoZoomFactor = clamped
+            device.unlockForConfiguration()
+        } catch {
+            print("Unable to set zoom factor. \(error)")
+        }
+    }
     
     private func pointInMetadataSpace(from pointInViewSpace: CGPoint) -> CGPoint {
         let fullFrameInOutputCoordinates = previewCapture.output.outputRectConverted(fromMetadataOutputRect: CGRect(origin: .zero, size: .init(width: 1, height: 1)))
@@ -580,7 +598,31 @@ actor CaptureService {
                 }
             }
         }
+
+        Task {
+            // React to external cameras being connected/disconnected.
+            for await _ in deviceLookup.devicesChanged {
+                guard isSetUp else { continue }
+                let currentDevice = activeVideoInput?.device
+                let availableDevices = deviceLookup.cameras
+
+                if let currentDevice, !availableDevices.contains(currentDevice) {
+                    // Active camera was disconnected — switch to system preferred or first available.
+                    if let fallback = AVCaptureDevice.systemPreferredCamera ?? availableDevices.first {
+                        changeCaptureDevice(to: fallback)
+                    }
+                }
+            }
+        }
+
+        // Observe system-preferred camera changes (e.g. external camera connected on iPad).
+        Task {
+            for await deviceID in systemPreferredCamera.changes {
+                guard isSetUp,
+                      let newCamera = AVCaptureDevice(uniqueID: deviceID),
+                      activeVideoInput?.device != newCamera else { continue }
+                changeCaptureDevice(to: newCamera)
+            }
+        }
     }
 }
-
-
