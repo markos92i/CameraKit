@@ -17,7 +17,7 @@ struct FeatureOverlayView: View {
     var body: some View {
         GeometryReader { geometry in
             ZStack {
-                if camera.lastPhoto == nil {
+                if camera.captureSnapshot == nil {
                     ForEach(camera.featureMetadata) { data in
                         let points = CGPointUtils.convertToAspectFill(data.flippedPoints, source: data.image.extent.size, target: geometry.size)
 

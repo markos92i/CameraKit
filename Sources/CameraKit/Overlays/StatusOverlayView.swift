@@ -43,8 +43,7 @@ struct StatusOverlayView: View {
                     }
                 }
                 .padding()
-                .background(color.opacity(0.1))
-                .clipShape(.rect(cornerRadius: 10))
+                .background(color.opacity(0.1), in: .rect(cornerRadius: 10))
                 .overlay(
                     RoundedRectangle(cornerRadius: 10)
                         .stroke(color.opacity(0.5), lineWidth: 1))

@@ -11,7 +11,7 @@ import SwiftUI
 struct CardCaptureAnimationView: View {
     let photo: UIImage
     @Binding var phase: CapturePhase
-    let quadrilateral: FeatureMetadata?
+    let quadrilateral: CaptureMetadata?
     let containerSize: CGSize
 
     @State private var progress: CGFloat = 0

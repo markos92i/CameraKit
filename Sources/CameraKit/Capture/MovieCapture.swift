@@ -47,7 +47,7 @@ final class MovieCapture: OutputService, @unchecked Sendable {
         guard !movieOutput.isRecording else { return }
         
         guard let connection = movieOutput.connection(with: .video) else {
-            fatalError("Configuration error. No video connection found.")
+            return
         }
 
         // Configure connection for HEVC capture.

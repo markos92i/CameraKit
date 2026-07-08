@@ -39,8 +39,12 @@ final class PhotoCapture: OutputService, @unchecked Sendable {
     
     /// The app calls this method when the user taps the photo capture button.
     func capturePhoto(with features: PhotoFeatures) async throws -> Photo {
+        // Guard against calling capturePhoto when there's no active connection (e.g. Simulator).
+        guard photoOutput.connection(with: .video) != nil else {
+            throw PhotoCaptureError.noPhotoData
+        }
         // Wrap the delegate-based capture API in a continuation to use it in an async context.
-        try await withCheckedThrowingContinuation { continuation in
+        return try await withCheckedThrowingContinuation { continuation in
             
             // Create a settings object to configure the photo capture.
             let photoSettings = createPhotoSettings(with: features)

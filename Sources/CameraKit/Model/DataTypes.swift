@@ -80,6 +80,23 @@ public struct Photo: Sendable {
     public let data: Data
     public let isProxy: Bool
     public let livePhotoMovieURL: URL?
+
+    /// Writes the raw capture data directly to a file and returns its URL.
+    ///
+    /// This avoids recompression — the bytes from `AVCapturePhoto.fileDataRepresentation()`
+    /// are persisted as-is (HEIC or JPEG depending on device settings).
+    public func fileURL() -> URL? {
+        guard let dir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else { return nil }
+        let formatter = DateFormatter()
+        formatter.dateFormat = "dd-MM-yyyy'_'HH'-'mm'-'ss"
+        let url = dir.appendingPathComponent("\(formatter.string(from: .now)).jpg")
+        do {
+            try data.write(to: url)
+            return url
+        } catch {
+            return nil
+        }
+    }
 }
 
 /// A structure that contains the uniform type identifier and movie URL.

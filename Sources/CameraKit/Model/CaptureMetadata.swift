@@ -1,5 +1,5 @@
 //
-//  FeatureMetadata.swift
+//  CaptureMetadata.swift
 //  CameraKit
 //
 //  Created by Marcos del Castillo Camacho on 3/7/25.
@@ -7,14 +7,15 @@
 
 import SwiftUI
 
-public struct FeatureMetadata: Identifiable, Sendable, Equatable {
+public struct CaptureMetadata: Identifiable, Sendable, Equatable {
     public let id: UUID
-    let type: FeatureType
+    public let type: CaptureType
+    public let description: String
+    public let coordinates: [CGPoint]
+
     let image: CIImage
-    let description: String
-    let coordinates: [CGPoint]
-    
-    init(id: UUID = UUID(), type: FeatureType, image: CIImage, description: String = "", coordinates: [CGPoint]) {
+
+    init(id: UUID = UUID(), type: CaptureType, image: CIImage, description: String = "", coordinates: [CGPoint]) {
         self.id = id
         self.type = type
         self.image = image
@@ -22,8 +23,8 @@ public struct FeatureMetadata: Identifiable, Sendable, Equatable {
         self.coordinates = coordinates
     }
 
-    /// Creates a FeatureMetadata with a stable ID derived from the description text.
-    init(stableID text: String, type: FeatureType, image: CIImage, coordinates: [CGPoint]) {
+    /// Creates a CaptureMetadata with a stable ID derived from the description text.
+    init(stableID text: String, type: CaptureType, image: CIImage, coordinates: [CGPoint]) {
         // Generate a deterministic UUID from the text hash so SwiftUI can track identity across frames
         var hasher = Hasher()
         hasher.combine(text)
@@ -40,15 +41,15 @@ public struct FeatureMetadata: Identifiable, Sendable, Equatable {
         self.description = text
         self.coordinates = coordinates
     }
-    
-    enum FeatureType {
+
+    public enum CaptureType: Sendable, Equatable {
         case rectangle
         case text
         case face
     }
 }
 
-extension FeatureMetadata {
+extension CaptureMetadata {
     var crop: CIImage { image.perspective(points: CGPointUtils.scale(coordinates, to: image.extent.size)) }
     var flippedPoints: [CGPoint] {
         CGPointUtils.flipVertically(CGPointUtils.scale(coordinates, to: image.extent.size), extent: image.extent)

@@ -7,16 +7,19 @@
 
 import SwiftUI
 
-/// Animates detected text regions from their positions on the photo into an editable list.
+/// Animates detected text regions from their positions on the photo into a read-only list.
 struct TextCaptureAnimationView: View {
     let photo: UIImage
     @Binding var phase: CapturePhase
-    @Binding var editableTexts: [EditableTextItem]
-    let features: [FeatureMetadata]
+    let features: [CaptureMetadata]
     let containerSize: CGSize
 
     @Namespace private var textAnimation
     @State private var extracted = false
+
+    private var textFeatures: [CaptureMetadata] {
+        features.filter { $0.type == .text }
+    }
 
     var body: some View {
         ZStack {
@@ -30,34 +33,26 @@ struct TextCaptureAnimationView: View {
 
             if !extracted {
                 // Texts overlaid at their detected positions
-                ForEach(features) { data in
-                    if data.type == .text {
-                        let points = CGPointUtils.convertToAspectFill(
-                            data.flippedPoints,
-                            source: data.image.extent.size,
-                            target: containerSize
-                        )
-                        let center = CGPointUtils.center(of: points)
-                        let angle = atan2(points[1].y - points[0].y, points[1].x - points[0].x)
+                ForEach(textFeatures) { data in
+                    let points = CGPointUtils.convertToAspectFill(
+                        data.flippedPoints,
+                        source: data.image.extent.size,
+                        target: containerSize
+                    )
+                    let center = CGPointUtils.center(of: points)
+                    let angle = atan2(points[1].y - points[0].y, points[1].x - points[0].x)
 
-                        TextChip(text: data.description)
-                            .matchedGeometryEffect(id: data.id, in: textAnimation)
-                            .rotationEffect(.radians(angle))
-                            .position(x: center.x, y: center.y)
-                    }
+                    TextChip(text: data.description)
+                        .matchedGeometryEffect(id: data.id, in: textAnimation)
+                        .rotationEffect(.radians(angle))
+                        .position(x: center.x, y: center.y)
                 }
             } else {
-                // Editable text list
-                TextListView(
-                    items: $editableTexts,
-                    namespace: textAnimation
-                )
+                // Read-only text list
+                TextListView(items: textFeatures, namespace: textAnimation)
             }
         }
         .onAppear {
-            editableTexts = features
-                .filter { $0.type == .text }
-                .map { EditableTextItem(id: $0.id, text: $0.description) }
             phase = .animating
             withAnimation(.spring(duration: 0.5, bounce: 0.12)) {
                 extracted = true
@@ -68,18 +63,7 @@ struct TextCaptureAnimationView: View {
     }
 }
 
-// MARK: - Supporting Types
-
-/// An editable text item for the post-capture list.
-public struct EditableTextItem: Identifiable, Equatable, Sendable {
-    public let id: UUID
-    public var text: String
-
-    public init(id: UUID = UUID(), text: String) {
-        self.id = id
-        self.text = text
-    }
-}
+// MARK: - Supporting Views
 
 /// A styled chip that represents a detected text block.
 struct TextChip: View {
@@ -97,19 +81,17 @@ struct TextChip: View {
 
 // MARK: - Text List View
 
-/// Scrollable editable list of extracted texts.
+/// Scrollable read-only list of extracted texts.
 struct TextListView: View {
-    @Binding var items: [EditableTextItem]
+    let items: [CaptureMetadata]
     var namespace: Namespace.ID
 
     var body: some View {
         ScrollView {
             LazyVStack(spacing: 12) {
-                ForEach($items) { $item in
-                    TextListRow(item: $item) {
-                        items.removeAll { $0.id == item.id }
-                    }
-                    .matchedGeometryEffect(id: item.id, in: namespace)
+                ForEach(items) { item in
+                    TextListRow(text: item.description)
+                        .matchedGeometryEffect(id: item.id, in: namespace)
                 }
             }
             .padding()
@@ -119,52 +101,24 @@ struct TextListView: View {
 
 // MARK: - Text List Row
 
-/// A single row in the editable text list with copy, edit, and delete actions.
+/// A single row in the read-only text list with a copy action.
 struct TextListRow: View {
-    @Binding var item: EditableTextItem
-    let onDelete: () -> Void
-    @State private var isEditing = false
-    @FocusState private var isFocused: Bool
+    let text: String
 
     var body: some View {
         HStack(spacing: 12) {
-            if isEditing {
-                TextField("", text: $item.text)
-                    .textFieldStyle(.plain)
-                    .font(.body)
-                    .focused($isFocused)
-                    .onSubmit { isEditing = false }
-            } else {
-                Text(item.text)
-                    .font(.body)
-                    .lineLimit(2)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
+            Text(text)
+                .font(.body)
+                .lineLimit(2)
+                .frame(maxWidth: .infinity, alignment: .leading)
 
             Spacer(minLength: 0)
 
             Button {
-                UIPasteboard.general.string = item.text
+                UIPasteboard.general.string = text
             } label: {
                 Image(systemName: "doc.on.doc")
                     .font(.system(size: 14))
-            }
-            .buttonStyle(.plain)
-            .foregroundStyle(.secondary)
-
-            Button {
-                isEditing.toggle()
-                isFocused = isEditing
-            } label: {
-                Image(systemName: isEditing ? "checkmark" : "pencil")
-                    .font(.system(size: 14))
-            }
-            .buttonStyle(.plain)
-            .foregroundStyle(.secondary)
-
-            Button(action: onDelete) {
-                Image(systemName: "xmark")
-                    .font(.system(size: 12, weight: .medium))
             }
             .buttonStyle(.plain)
             .foregroundStyle(.secondary)

@@ -8,7 +8,7 @@
 import SwiftUI
 
 struct FilterPicker<CameraModel: Camera>: View {
-    @State var camera: CameraModel
+    @Bindable var camera: CameraModel
     
     var body: some View {
         Menu {

@@ -302,23 +302,19 @@ actor CaptureService {
     /// The implementation switches between the front and back cameras and, in iPadOS,
     /// connected external cameras.
     func selectNextVideoDevice() {
-        // The array of available video capture devices.
+        // Guard against calling when session isn't configured or no devices available.
         let videoDevices = deviceLookup.cameras
+        guard isSetUp,
+              let current = activeVideoInput?.device,
+              let selectedIndex = videoDevices.firstIndex(of: current) else { return }
 
-        // Find the index of the currently selected video device.
-        let selectedIndex = videoDevices.firstIndex(of: currentDevice) ?? 0
-        // Get the next index.
-        var nextIndex = selectedIndex + 1
-        // Wrap around if the next index is invalid.
-        if nextIndex == videoDevices.endIndex {
-            nextIndex = 0
-        }
-        
+        // Get the next index, wrapping around.
+        let nextIndex = (selectedIndex + 1) % videoDevices.count
         let nextDevice = videoDevices[nextIndex]
+        
         // Change the session's active capture device.
         changeCaptureDevice(to: nextDevice)
         
-        // The app only calls this method in response to the user requesting to switch cameras.
         // Set the new selection as the user's preferred camera.
         AVCaptureDevice.userPreferredCamera = nextDevice
     }
@@ -326,7 +322,7 @@ actor CaptureService {
     // Changes the device the service uses for video capture.
     private func changeCaptureDevice(to device: AVCaptureDevice) {
         // The service must have a valid video input prior to calling this method.
-        guard let currentInput = activeVideoInput else { fatalError() }
+        guard let currentInput = activeVideoInput else { return }
         
         // Bracket the following configuration in a begin/commit configuration pair.
         captureSession.beginConfiguration()
@@ -443,7 +439,6 @@ actor CaptureService {
         // Cancel the previous observation task.
         subjectAreaChangeTask?.cancel()
         subjectAreaChangeTask = Task {
-            // Signal true when this notification occurs.
             for await _ in NotificationCenter.default.notifications(named: AVCaptureDevice.subjectAreaDidChangeNotification, object: device).compactMap({ _ in true }) {
                 // Perform a system-initiated focus and expose.
                 try? focusAndExpose(at: CGPoint(x: 0.5, y: 0.5), isUserInitiated: false)

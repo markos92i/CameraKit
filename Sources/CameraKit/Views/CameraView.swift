@@ -11,7 +11,7 @@ public struct CameraView<CameraModel: Camera>: View {
     @State private var camera: CameraModel
     private var handler: ((CaptureResult) -> Void)?
                 
-    private var captured: Bool { camera.lastPhoto != nil || camera.lastVideo != nil }
+    private var captured: Bool { camera.captureSnapshot != nil }
     private var disabled: Bool { camera.isProcessing || camera.status.disabled }
         
     public init(camera: CameraModel, handler: ((CaptureResult) -> Void)? = nil) {
@@ -138,42 +138,21 @@ public struct CameraView<CameraModel: Camera>: View {
     var AcceptButton: some View {
         Button {
             Task {
-                if let lastPhoto = camera.lastPhoto, let url = lastPhoto.store(quality: 0.8) {
-                    switch camera.imageFilter {
-                    case .cards:
-                        let regions = await recognizeText(in: lastPhoto)
-                        handler?(.document(url: url, regions: regions))
-                    case .text:
-                        // Use the user-edited texts from the capture list
-                        let regions = camera.editableTexts.map { TextRegion(text: $0.text, bounds: .zero) }
-                        handler?(.document(url: url, regions: regions))
-                    case .none:
-                        handler?(.photo(url: url))
+                switch camera.captureSnapshot {
+                case .photo(_, let raw, let metadata):
+                    if let url = raw.fileURL() {
+                        handler?(.photo(url: url, metadata: metadata))
                     }
-                } else if let lastVideo = camera.lastVideo {
-                    handler?(.video(url: lastVideo))
+                case .video(let url):
+                    handler?(.video(url: url))
+                case nil:
+                    break
                 }
             }
         } label: {
             Label("hecho", systemImage: "checkmark")
         }
         .buttonStyle(CameraButtonStyle(size: .medium))
-    }
-    
-    private func recognizeText(in image: UIImage) async -> [TextRegion] {
-        guard let ciImage = CIImage(image: image) else { return [] }
-        let observations = await FeatureDetection.text(in: ciImage)
-        return observations.compactMap { observation in
-            guard let candidate = observation.topCandidates(1).first,
-                  let box = candidate.boundingBox(for: candidate.string.startIndex..<candidate.string.endIndex) else { return nil }
-            let rect = CGRect(
-                x: box.bottomLeft.x,
-                y: 1 - box.topLeft.y,
-                width: box.topRight.x - box.topLeft.x,
-                height: box.topLeft.y - box.bottomLeft.y
-            )
-            return TextRegion(text: candidate.string, bounds: rect)
-        }
     }
             
     @ViewBuilder

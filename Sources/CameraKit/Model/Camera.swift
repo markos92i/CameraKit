@@ -13,13 +13,13 @@ import AVFoundation
 /// The AVFoundation camera APIs require running on a physical device. The app defines the model as a protocol to make it
 /// simple to swap out the real camera for a test camera when previewing SwiftUI views.
 @MainActor
-public protocol Camera: AnyObject, Sendable {
+public protocol Camera: AnyObject, Observable, Sendable {
     
     /// Provides the current status of the camera.
     var status: CameraStatus { get }
     
     /// Metadata of detected features (example: Rectangles using Feature Recognition)
-    var featureMetadata: [FeatureMetadata] { get set }
+    var featureMetadata: [CaptureMetadata] { get set }
     
     /// Metadata of objects being focused in cinematic mode
     var focusPoints: [FocusIndicator] { get }
@@ -100,19 +100,13 @@ public protocol Camera: AnyObject, Sendable {
     /// A thumbnail image for the most recent photo or video capture.
     var thumbnail: CGImage? { get }
 
-    /// The source of video content for a camera preview.
-    var lastPhoto: UIImage? { get set }
-
-    /// The source of video content for a camera preview.
-    var lastVideo: URL? { get set }
-
-    /// Editable text items from the text capture mode (populated after capture, editable by user).
-    var editableTexts: [EditableTextItem] { get set }
+    /// The current capture snapshot (photo or video), held until accepted or discarded.
+    var captureSnapshot: CaptureSnapshot? { get set }
     
     /// Synchronize the state of the camera with the persisted values.
     func syncState() async
     
-    /// Resets capture state: cancels pending detection, clears photo/video/metadata.
+    /// Resets capture state: cancels pending detection, clears snapshot and metadata.
     func clearCapture()
 }
 

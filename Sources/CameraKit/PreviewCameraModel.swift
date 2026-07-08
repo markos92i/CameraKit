@@ -1,34 +1,27 @@
 import Foundation
 import SwiftUI
-import CoreMedia
+import CoreImage
 import AVFoundation
 
+/// A mock camera model for SwiftUI previews and the Simulator.
+/// Does not interact with real capture hardware.
+@MainActor
 @Observable
-public class PreviewCameraModel: Camera {
+public final class PreviewCameraModel: Camera {
     public let preview = AVSampleBufferDisplayLayer()
     public let alternativePreview = AVSampleBufferDisplayLayer()
-    public var featureMetadata: [FeatureMetadata] = []
-    public let focusPoints: [FocusIndicator] = []
+    public var featureMetadata: [CaptureMetadata] = []
+    public var focusPoints: [FocusIndicator] = []
 
     public private(set) var status = CameraStatus.unknown
     public private(set) var captureActivity = CaptureActivity.idle
-    public var captureMode = CaptureMode.photo {
-        didSet {
-            isSwitchingModes = true
-            Task {
-                try? await Task.sleep(until: .now + .seconds(0.3), clock: .continuous)
-                self.isSwitchingModes = false
-            }
-        }
-    }
+    public var captureMode = CaptureMode.photo
     public private(set) var isSwitchingModes = false
     public var error: Error?
-    public var previewImage: CIImage? = nil
     public var previewFilter: (sending CIImage) async -> sending CIImage = { $0 }
     public var imageFilter: ImageFilter = .none
     public var isSwitchingDevices: Bool = false
     public var swipeDirection: SwipeDirection = .left
-    public var isRecording: Bool = false
     public var isProcessing: Bool = false
     public var isLivePhotoEnabled: Bool = false
     public var qualityPrioritization: QualityPrioritization = .quality
@@ -37,17 +30,14 @@ public class PreviewCameraModel: Camera {
     public var isHDRVideoEnabled: Bool = false
     public var isToolbarVisible: Bool = false
     public var isCaptureModeVisible: Bool = false
-    public var recordingTime: TimeInterval { .zero }
     public var thumbnail: CGImage? = nil
-    public var lastPhoto: UIImage? = nil
-    public var lastVideo: URL? = nil
-    public var editableTexts: [EditableTextItem] = []
+    public var captureSnapshot: CaptureSnapshot? = nil
 
     public init(captureMode: CaptureMode = .photo, status: CameraStatus = .unknown) {
         self.captureMode = captureMode
         self.status = status
     }
-    
+
     public init(configuration: CameraConfiguration) {
         self.captureMode = configuration.captureMode
         self.qualityPrioritization = configuration.qualityPrioritization
@@ -57,11 +47,11 @@ public class PreviewCameraModel: Camera {
         self.isToolbarVisible = configuration.isToolbarVisible
         self.isCaptureModeVisible = configuration.isCaptureModeVisible
     }
-    
+
     public func start() async {
         if status == .unknown { status = .running }
     }
-    
+
     public func stop() async {
         status = .unknown
     }
@@ -71,21 +61,45 @@ public class PreviewCameraModel: Camera {
     public func capturePhoto() async -> Photo? {
         shouldFlashScreen = true
         withAnimation(.easeInOut(duration: 0.1)) { shouldFlashScreen = false }
-        return nil
-    }
-    
-    public func toggleRecording() async -> Movie? { nil }
 
-    public func switchVideoDevices() {
+        // Generate a simulated capture for preview purposes
+        let renderer = UIGraphicsImageRenderer(size: CGSize(width: 400, height: 600))
+        let image = renderer.image { context in
+            let colors = [UIColor.systemBlue.cgColor, UIColor.systemPurple.cgColor]
+            let gradient = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(), colors: colors as CFArray, locations: nil)!
+            context.cgContext.drawLinearGradient(gradient, start: .zero, end: CGPoint(x: 400, y: 600), options: [])
+        }
+
+        guard let data = image.jpegData(compressionQuality: 0.8) else { return nil }
+        let photo = Photo(data: data, isProxy: false, livePhotoMovieURL: nil)
+        captureSnapshot = .photo(preview: image, raw: photo, metadata: featureMetadata)
+        return photo
+    }
+
+    public func toggleRecording() async -> Movie? {
+        if captureActivity.isRecording {
+            captureActivity = .idle
+            // Simulate a recorded video with a placeholder URL
+            let url = URL.temporaryDirectory.appending(component: "preview-video.mov")
+            captureSnapshot = .video(url: url)
+            return Movie(url: url)
+        } else {
+            captureActivity = .movieCapture(duration: 0)
+            return nil
+        }
+    }
+
+    public func switchVideoDevices() async {
+        isSwitchingModes = true
         captureMode = captureMode.toggle()
+        try? await Task.sleep(for: .seconds(0.3))
+        isSwitchingModes = false
     }
 
     public func syncState() async {}
-    
+
     public func clearCapture() {
-        lastPhoto = nil
-        lastVideo = nil
-        editableTexts = []
+        captureSnapshot = nil
         featureMetadata = []
     }
 }

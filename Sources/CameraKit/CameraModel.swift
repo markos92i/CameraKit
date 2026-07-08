@@ -6,7 +6,7 @@
 //
 
 import SwiftUI
-@preconcurrency import AVFoundation
+import AVFoundation
 
 struct SendableDisplayLayer: @unchecked Sendable {
     let layer: AVSampleBufferDisplayLayer
@@ -29,7 +29,7 @@ public final class CameraModel: Camera {
     public let alternativePreview: AVSampleBufferDisplayLayer = AVSampleBufferDisplayLayer()
 
     /// Metadata to highlight features or focus points over the preview.
-    public var featureMetadata: [FeatureMetadata] = []
+    public var featureMetadata: [CaptureMetadata] = []
     public private(set) var focusPoints: [FocusIndicator] = []
 
     /// An error that indicates the details of an error during photo or movie capture.
@@ -73,8 +73,8 @@ public final class CameraModel: Camera {
         }
     }
 
-    private func detect(in image: CIImage, work: @escaping (CIImage) async -> [FeatureMetadata]) {
-        guard detectionTask == nil, lastPhoto == nil, lastVideo == nil else { return }
+    private func detect(in image: CIImage, work: @escaping (CIImage) async -> [CaptureMetadata]) {
+        guard detectionTask == nil, captureSnapshot == nil else { return }
         detectionTask = Task {
             let result = await work(image)
             guard !Task.isCancelled else { return }
@@ -83,24 +83,21 @@ public final class CameraModel: Camera {
         }
     }
 
-    private func detectRectangle(in image: CIImage) async -> [FeatureMetadata] {
+    private func detectRectangle(in image: CIImage) async -> [CaptureMetadata] {
         guard let points = await FeatureDetection.rectangle(in: image) else { return [] }
         let id = featureMetadata.first?.id ?? UUID()
-        return [FeatureMetadata(id: id, type: .rectangle, image: image, coordinates: points)]
+        return [CaptureMetadata(id: id, type: .rectangle, image: image, coordinates: points)]
     }
 
-    private func detectText(in image: CIImage) async -> [FeatureMetadata] {
+    private func detectText(in image: CIImage) async -> [CaptureMetadata] {
         let observations = await FeatureDetection.text(in: image)
         return observations.compactMap { observation in
             guard let candidate = observation.topCandidates(1).first,
                   let box = candidate.boundingBox(for: candidate.string.startIndex..<candidate.string.endIndex) else { return nil }
             let points = [box.topLeft, box.topRight, box.bottomRight, box.bottomLeft].map { CGPoint(x: $0.x, y: $0.y) }
-            return FeatureMetadata(stableID: candidate.string, type: .text, image: image, coordinates: points)
+            return CaptureMetadata(stableID: candidate.string, type: .text, image: image, coordinates: points)
         }
     }
-
-    /// Async stream of photograms from the camera preview
-    var previewStream: AsyncStream<CIImage> { captureService.previewStream }
 
     /// A Boolean that indicates whether the camera supports HDR video recording.
     public private(set) var isHDRVideoSupported = false
@@ -126,14 +123,8 @@ public final class CameraModel: Camera {
     /// A thumbnail image for the most recent photo or video capture.
     public var thumbnail: CGImage? = nil
 
-    /// The source of video content for a camera preview.
-    public var lastPhoto: UIImage? = nil
-
-    /// The source of video content for a camera preview.
-    public var lastVideo: URL? = nil
-
-    /// Editable text items from text capture mode.
-    public var editableTexts: [EditableTextItem] = []
+    /// The current capture snapshot (photo or video), held until accepted or discarded.
+    public var captureSnapshot: CaptureSnapshot? = nil
 
     /// The initial configuration for this camera instance.
     private let configuration: CameraConfiguration
@@ -193,9 +184,7 @@ public final class CameraModel: Camera {
     public func clearCapture() {
         detectionTask?.cancel()
         detectionTask = nil
-        lastPhoto = nil
-        lastVideo = nil
-        editableTexts = []
+        captureSnapshot = nil
         featureMetadata = []
     }
     
@@ -221,6 +210,7 @@ public final class CameraModel: Camera {
     
     /// Selects the next available video device for capture.
     public func switchVideoDevices() async {
+        guard status == .running else { return }
         isSwitchingDevices = true
         defer { isSwitchingDevices = false }
         await captureService.selectNextVideoDevice()
@@ -229,10 +219,11 @@ public final class CameraModel: Camera {
     // MARK: - Photo capture
     /// Captures a photo and writes it to the user's Photos library.
     public func capturePhoto() async -> Photo? {
+        guard status == .running else { return nil }
         isProcessing = true
         defer { isProcessing = false }
         
-        let lastFeature: FeatureMetadata? = featureMetadata.first
+        let snapshotMetadata = featureMetadata
         
         // Stop detection during capture and animation
         detectionTask?.cancel()
@@ -242,10 +233,14 @@ public final class CameraModel: Camera {
             let photoFeatures = PhotoFeatures(isLivePhotoEnabled: isLivePhotoEnabled, qualityPrioritization: qualityPrioritization)
             let photo = try await captureService.capturePhoto(with: photoFeatures)
             if configuration.savesToGallery { try await mediaLibrary.save(photo: photo) }
-                        
-            switch imageFilter {
-            case .cards: lastPhoto = lastFeature?.crop.uiImage
-            default: lastPhoto = UIImage(data: photo.data)
+            
+            let preview: UIImage? = switch imageFilter {
+            case .cards: await cropCard(from: photo.data)
+            default: UIImage(data: photo.data)
+            }
+            
+            if let preview {
+                captureSnapshot = .photo(preview: preview, raw: photo, metadata: snapshotMetadata)
             }
             
             return photo
@@ -253,6 +248,32 @@ public final class CameraModel: Camera {
             self.error = error
             return nil
         }
+    }
+
+    /// Crops the detected rectangle from the full-resolution captured photo.
+    ///
+    /// Instead of reusing preview coordinates (which are in a different pixel space),
+    /// we run rectangle detection directly on the captured photo for precise alignment.
+    /// The EXIF orientation of the original photo is applied to the crop so it displays
+    /// correctly in the portrait-locked UI.
+    private func cropCard(from data: Data) async -> UIImage? {
+        guard let ciImage = CIImage(data: data) else { return nil }
+
+        // Detect rectangle directly on the captured photo — coordinates are in its own space
+        guard let points = await FeatureDetection.rectangle(in: ciImage) else { return nil }
+        let scaledPoints = CGPointUtils.scale(points, to: ciImage.extent.size)
+        let cropped = ciImage.perspective(points: scaledPoints)
+
+        // Apply the same EXIF orientation as the original photo so the crop displays upright
+        let orientation = ciImage.properties[kCGImagePropertyOrientation as String] as? UInt32
+        let oriented: CIImage
+        if let orientation, let exif = CGImagePropertyOrientation(rawValue: orientation) {
+            oriented = cropped.oriented(exif)
+        } else {
+            oriented = cropped
+        }
+
+        return oriented.uiImage
     }
     
     /// A Boolean value that indicates whether to capture Live Photos when capturing stills.
@@ -267,6 +288,7 @@ public final class CameraModel: Camera {
     
     /// Performs a focus and expose operation at the specified screen point.
     public func focusAndExpose(at point: CGPoint) async {
+        guard status == .running else { return }
         await captureService.focusAndExpose(at: point)
     }
     
@@ -293,6 +315,7 @@ public final class CameraModel: Camera {
     
     /// Toggles the state of recording.
     public func toggleRecording() async -> Movie? {
+        guard status == .running else { return nil }
         isProcessing = true
         defer { isProcessing = false }
 
@@ -301,7 +324,7 @@ public final class CameraModel: Camera {
             do {
                 let movie = try await captureService.stopRecording()
                 if configuration.savesToGallery { try await mediaLibrary.save(movie: movie) }
-                lastVideo = movie.url
+                captureSnapshot = .video(url: movie.url)
                 return movie
             } catch {
                 self.error = error
