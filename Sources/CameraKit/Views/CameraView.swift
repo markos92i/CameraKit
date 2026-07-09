@@ -83,6 +83,12 @@ public struct CameraView<CameraModel: Camera>: View {
                     await camera.stop()
                 }
             }
+            .alert(
+                "Error",
+                isPresented: Binding(get: { camera.error != nil }, set: { if !$0 { camera.error = nil } }),
+                actions: { Button("OK") { camera.error = nil } },
+                message: { Text(camera.error?.localizedDescription ?? "") }
+            )
     }
     
     @ViewBuilder

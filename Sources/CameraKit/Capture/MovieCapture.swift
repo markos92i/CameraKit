@@ -7,6 +7,21 @@
 
 import AVFoundation
 
+/// Errors that can occur during movie capture.
+enum MovieCaptureError: Error, LocalizedError {
+    /// The movie output has no active video connection (output not added to session).
+    case noVideoConnection
+    /// Recording is already in progress.
+    case alreadyRecording
+    
+    var errorDescription: String? {
+        switch self {
+        case .noVideoConnection: "No se ha podido iniciar la grabación. La cámara no está lista."
+        case .alreadyRecording: "Ya hay una grabación en curso."
+        }
+    }
+}
+
 /// An object that manages a movie capture output to record videos.
 final class MovieCapture: OutputService, @unchecked Sendable {
     
@@ -42,12 +57,14 @@ final class MovieCapture: OutputService, @unchecked Sendable {
     // MARK: - Capturing a movie
     
     /// Starts movie recording.
-    func startRecording() {
-        // Return early if already recording.
-        guard !movieOutput.isRecording else { return }
+    /// - Throws: `MovieCaptureError` if the output isn't ready to record.
+    func startRecording() throws {
+        guard !movieOutput.isRecording else {
+            throw MovieCaptureError.alreadyRecording
+        }
         
         guard let connection = movieOutput.connection(with: .video) else {
-            return
+            throw MovieCaptureError.noVideoConnection
         }
 
         // Configure connection for HEVC capture.

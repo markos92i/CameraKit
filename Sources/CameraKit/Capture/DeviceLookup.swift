@@ -88,12 +88,6 @@ final class DeviceLookup {
             cameras.append(frontCamera)
         }
         cameras.append(contentsOf: externalCameraDiscoverySession.devices)
-
-        #if !targetEnvironment(simulator)
-        if cameras.isEmpty {
-            fatalError("No camera devices are found on this system.")
-        }
-        #endif
         return cameras
     }
 }

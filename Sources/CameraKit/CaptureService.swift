@@ -500,8 +500,8 @@ actor CaptureService {
     // MARK: - Movie capture
     /// Starts recording video. The video records until the user stops recording,
     /// which calls the following `stopRecording()` method.
-    func startRecording() {
-        movieCapture.startRecording()
+    func startRecording() throws {
+        try movieCapture.startRecording()
     }
     
     /// Stops the recording and returns the captured movie.

@@ -80,8 +80,8 @@ public protocol Camera: AnyObject, Observable, Sendable {
     /// Starts or stops recording a movie, and writes it to the user's photo library when complete.
     func toggleRecording() async -> Movie?
         
-    /// An error if the camera encountered a problem.
-    var error: Error? { get }
+    /// An error if the camera encountered a problem. Set to `nil` to dismiss.
+    var error: Error? { get set }
     
     /// A thumbnail image for the most recent photo or video capture.
     var thumbnail: CGImage? { get }

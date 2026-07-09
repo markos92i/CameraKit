@@ -45,7 +45,7 @@ public final class CameraModel: Camera {
     public private(set) var focusPoints: [FocusIndicator] = []
 
     /// An error that indicates the details of an error during photo or movie capture.
-    public private(set) var error: Error?
+    public var error: Error?
 
     /// The current status of the camera, such as unauthorized, running, or failed.
     public private(set) var status: CameraStatus = .unknown
@@ -218,7 +218,11 @@ public final class CameraModel: Camera {
                 return nil
             }
         default:
-            await captureService.startRecording()
+            do {
+                try await captureService.startRecording()
+            } catch {
+                self.error = error
+            }
             return nil
         }
     }

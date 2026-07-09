@@ -141,13 +141,24 @@ public enum QualityPrioritization: Int, Identifiable, CaseIterable, CustomString
     }
 }
 
-public enum CameraError: Error {
+public enum CameraError: Error, LocalizedError {
     case videoDeviceUnavailable
     case audioDeviceUnavailable
     case addInputFailed
     case addOutputFailed
     case setupFailed
     case deviceChangeFailed
+    
+    public var errorDescription: String? {
+        switch self {
+        case .videoDeviceUnavailable: "No se ha encontrado una cámara disponible."
+        case .audioDeviceUnavailable: "No se ha encontrado un micrófono disponible."
+        case .addInputFailed: "No se ha podido configurar la entrada de la cámara."
+        case .addOutputFailed: "No se ha podido configurar la salida de captura."
+        case .setupFailed: "No se ha podido iniciar la cámara."
+        case .deviceChangeFailed: "No se ha podido cambiar de cámara."
+        }
+    }
 }
 
 protocol OutputService {

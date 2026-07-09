@@ -8,8 +8,16 @@
 import AVFoundation
 import CoreImage
 
-enum PhotoCaptureError: Error {
+enum PhotoCaptureError: Error, LocalizedError {
+    case noVideoConnection
     case noPhotoData
+    
+    var errorDescription: String? {
+        switch self {
+        case .noVideoConnection: "No se ha podido capturar la foto. La cámara no está lista."
+        case .noPhotoData: "La captura no ha producido datos de imagen."
+        }
+    }
 }
 
 /// An object that manages a photo capture output to perform take photographs.
@@ -41,7 +49,7 @@ final class PhotoCapture: OutputService, @unchecked Sendable {
     func capturePhoto(with config: CameraConfiguration) async throws -> Photo {
         // Guard against calling capturePhoto when there's no active connection (e.g. Simulator).
         guard photoOutput.connection(with: .video) != nil else {
-            throw PhotoCaptureError.noPhotoData
+            throw PhotoCaptureError.noVideoConnection
         }
         // Wrap the delegate-based capture API in a continuation to use it in an async context.
         return try await withCheckedThrowingContinuation { continuation in
@@ -71,10 +79,10 @@ final class PhotoCapture: OutputService, @unchecked Sendable {
         
         /// Set the format of the preview image to capture. The `photoSettings` object returns the available
         /// preview format types in order of compatibility with the primary image.
-        if let previewPhotoPixelFormatType = photoSettings.availablePreviewPhotoPixelFormatTypes.first {
-            photoSettings.previewPhotoFormat = [kCVPixelBufferPixelFormatTypeKey as String: previewPhotoPixelFormatType]
+        if let previewFormat = photoSettings.availablePreviewPhotoPixelFormatTypes.first {
+            photoSettings.previewPhotoFormat = [kCVPixelBufferPixelFormatTypeKey as String: previewFormat]
         }
-        
+
         /// Set the largest dimensions that the photo output supports.
         /// `CaptureService` automatically updates the photo output's `maxPhotoDimensions`
         /// when the capture pipeline changes.
@@ -128,14 +136,13 @@ final class PhotoCapture: OutputService, @unchecked Sendable {
     /// The `CaptureService` calls this method whenever you change cameras.
     ///
     func updateConfiguration(for device: AVCaptureDevice) {
-        // Enable all supported features.
         photoOutput.maxPhotoDimensions = device.activeFormat.supportedMaxPhotoDimensions.last ?? .zero
         photoOutput.isLivePhotoCaptureEnabled = photoOutput.isLivePhotoCaptureSupported
         photoOutput.maxPhotoQualityPrioritization = .quality
-        photoOutput.isZeroShutterLagEnabled = photoOutput.isZeroShutterLagSupported
-        photoOutput.isResponsiveCaptureEnabled = photoOutput.isResponsiveCaptureSupported
-        photoOutput.isFastCapturePrioritizationEnabled = photoOutput.isFastCapturePrioritizationSupported
-        photoOutput.isAutoDeferredPhotoDeliveryEnabled = photoOutput.isAutoDeferredPhotoDeliverySupported
+        if photoOutput.isZeroShutterLagSupported { photoOutput.isZeroShutterLagEnabled = true }
+        if photoOutput.isResponsiveCaptureSupported { photoOutput.isResponsiveCaptureEnabled = true }
+        if photoOutput.isFastCapturePrioritizationSupported { photoOutput.isFastCapturePrioritizationEnabled = true }
+        if photoOutput.isAutoDeferredPhotoDeliverySupported { photoOutput.isAutoDeferredPhotoDeliveryEnabled = true }
         updateCapabilities(for: device)
     }
     
