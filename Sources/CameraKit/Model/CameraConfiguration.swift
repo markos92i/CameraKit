@@ -5,33 +5,45 @@ import Foundation
 /// Passed at init time to define defaults, and exposed as `camera.config` for live mutation.
 /// Changes to `config` are automatically applied to the capture pipeline.
 public struct CameraConfiguration: Sendable, Equatable {
+    
+    // MARK: - General
+    
     public var captureMode: CaptureMode
+    public var savesToGallery: Bool
+    
+    // MARK: - Photo
+    
     public var qualityPrioritization: QualityPrioritization
     public var isLivePhotoEnabled: Bool
-    public var isHDRVideoEnabled: Bool
     public var imageFilter: ImageFilter
+    
+    // MARK: - Video
+    
+    public var isHDRVideoEnabled: Bool
+    
+    // MARK: - UI
+    
     public var isToolbarVisible: Bool
     public var isCaptureModeVisible: Bool
-    public var savesToGallery: Bool
 
     public init(
         captureMode: CaptureMode = .photo,
+        savesToGallery: Bool = false,
         qualityPrioritization: QualityPrioritization = .quality,
         isLivePhotoEnabled: Bool = true,
-        isHDRVideoEnabled: Bool = false,
         imageFilter: ImageFilter = .none,
+        isHDRVideoEnabled: Bool = false,
         isToolbarVisible: Bool = true,
-        isCaptureModeVisible: Bool = true,
-        savesToGallery: Bool = false
+        isCaptureModeVisible: Bool = true
     ) {
         self.captureMode = captureMode
+        self.savesToGallery = savesToGallery
         self.qualityPrioritization = qualityPrioritization
         self.isLivePhotoEnabled = isLivePhotoEnabled
-        self.isHDRVideoEnabled = isHDRVideoEnabled
         self.imageFilter = imageFilter
+        self.isHDRVideoEnabled = isHDRVideoEnabled
         self.isToolbarVisible = isToolbarVisible
         self.isCaptureModeVisible = isCaptureModeVisible
-        self.savesToGallery = savesToGallery
     }
 }
 

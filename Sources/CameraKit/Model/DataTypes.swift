@@ -105,11 +105,6 @@ public struct Movie: Sendable {
     public let url: URL
 }
 
-public struct PhotoFeatures: Sendable {
-    public let isLivePhotoEnabled: Bool
-    public let qualityPrioritization: QualityPrioritization
-}
-
 /// Hardware capabilities reported by the capture pipeline.
 public struct CaptureCapabilities: Sendable, Equatable {
     /// Whether the current device supports Live Photo capture.

@@ -38,7 +38,7 @@ final class PhotoCapture: OutputService, @unchecked Sendable {
     // MARK: - Capture a photo.
     
     /// The app calls this method when the user taps the photo capture button.
-    func capturePhoto(with features: PhotoFeatures) async throws -> Photo {
+    func capturePhoto(with config: CameraConfiguration) async throws -> Photo {
         // Guard against calling capturePhoto when there's no active connection (e.g. Simulator).
         guard photoOutput.connection(with: .video) != nil else {
             throw PhotoCaptureError.noPhotoData
@@ -47,7 +47,7 @@ final class PhotoCapture: OutputService, @unchecked Sendable {
         return try await withCheckedThrowingContinuation { continuation in
             
             // Create a settings object to configure the photo capture.
-            let photoSettings = createPhotoSettings(with: features)
+            let photoSettings = createPhotoSettings(with: config)
             
             let delegate = PhotoCaptureDelegate(continuation: continuation)
             monitorProgress(of: delegate)
@@ -60,7 +60,7 @@ final class PhotoCapture: OutputService, @unchecked Sendable {
     // MARK: - Create a photo settings object.
     
     // Create a photo settings object with the features a person enables in the UI.
-    private func createPhotoSettings(with features: PhotoFeatures) -> AVCapturePhotoSettings {
+    private func createPhotoSettings(with config: CameraConfiguration) -> AVCapturePhotoSettings {
         // Create a new settings object to configure the photo capture.
         var photoSettings = AVCapturePhotoSettings()
         
@@ -81,10 +81,10 @@ final class PhotoCapture: OutputService, @unchecked Sendable {
         photoSettings.maxPhotoDimensions = photoOutput.maxPhotoDimensions
         
         // Set the movie URL if the photo output supports Live Photo capture.
-        photoSettings.livePhotoMovieFileURL = features.isLivePhotoEnabled ? URL.movieFileURL : nil
+        photoSettings.livePhotoMovieFileURL = config.isLivePhotoEnabled ? URL.movieFileURL : nil
         
         // Set the priority of speed versus quality during this capture.
-        if let prioritization = AVCapturePhotoOutput.QualityPrioritization(rawValue: features.qualityPrioritization.rawValue) {
+        if let prioritization = AVCapturePhotoOutput.QualityPrioritization(rawValue: config.qualityPrioritization.rawValue) {
             photoSettings.photoQualityPrioritization = prioritization
         }
         

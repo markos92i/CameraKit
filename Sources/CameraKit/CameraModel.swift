@@ -116,7 +116,7 @@ public final class CameraModel: Camera {
             return
         }
         do {
-            try await captureService.start(captureMode: config.captureMode, isHDRVideoEnabled: config.isHDRVideoEnabled)
+            try await captureService.start(with: config)
             await captureService.startPreviewing()
             observeState()
             status = .running
@@ -166,8 +166,7 @@ public final class CameraModel: Camera {
         detectionTask = nil
         
         do {
-            let photoFeatures = PhotoFeatures(isLivePhotoEnabled: config.isLivePhotoEnabled, qualityPrioritization: config.qualityPrioritization)
-            let photo = try await captureService.capturePhoto(with: photoFeatures)
+            let photo = try await captureService.capturePhoto(with: config)
             if config.savesToGallery { try await mediaLibrary.save(photo: photo) }
             
             let preview: UIImage? = switch config.imageFilter {

@@ -142,10 +142,10 @@ actor CaptureService {
     }
     
     // MARK: - Capture session life cycle
-    func start(captureMode: CaptureMode, isHDRVideoEnabled: Bool) async throws {
-        // Set initial operating state.
-        self.captureMode = captureMode
-        self.isHDRVideoEnabled = isHDRVideoEnabled
+    func start(with config: CameraConfiguration) async throws {
+        // Set initial operating state from configuration.
+        captureMode = config.captureMode
+        isHDRVideoEnabled = config.isHDRVideoEnabled
         
         // Exit early if not authorized or the session is already running.
         guard await isAuthorized, !captureSession.isRunning else { return }
@@ -493,8 +493,8 @@ actor CaptureService {
     }
     
     // MARK: - Photo capture
-    func capturePhoto(with features: PhotoFeatures) async throws -> Photo {
-        try await photoCapture.capturePhoto(with: features)
+    func capturePhoto(with config: CameraConfiguration) async throws -> Photo {
+        try await photoCapture.capturePhoto(with: config)
     }
     
     // MARK: - Movie capture
