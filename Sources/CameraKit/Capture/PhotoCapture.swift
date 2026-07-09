@@ -80,8 +80,10 @@ final class PhotoCapture: OutputService, @unchecked Sendable {
         /// when the capture pipeline changes.
         photoSettings.maxPhotoDimensions = photoOutput.maxPhotoDimensions
         
-        // Set the movie URL if the photo output supports Live Photo capture.
-        photoSettings.livePhotoMovieFileURL = config.isLivePhotoEnabled ? URL.movieFileURL : nil
+        // Set the movie URL if Live Photo capture is both requested and supported.
+        if config.isLivePhotoEnabled, photoOutput.isLivePhotoCaptureEnabled {
+            photoSettings.livePhotoMovieFileURL = URL.movieFileURL
+        }
         
         // Set the priority of speed versus quality during this capture.
         if let prioritization = AVCapturePhotoOutput.QualityPrioritization(rawValue: config.qualityPrioritization.rawValue) {
