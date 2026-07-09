@@ -87,6 +87,6 @@ final class PreviewCapture: OutputService {
     // MARK: - Configuration
     /// Returns the capabilities for this capture service.
     var capabilities: CaptureCapabilities {
-        CaptureCapabilities(isHDRSupported: isHDRSupported)
+        CaptureCapabilities(isHDRVideoSupported: isHDRSupported)
     }
 }

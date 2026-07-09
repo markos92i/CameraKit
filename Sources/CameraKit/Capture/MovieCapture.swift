@@ -25,7 +25,7 @@ final class MovieCapture: OutputService, @unchecked Sendable {
     
     /// Returns the capabilities for this capture service.
     var capabilities: CaptureCapabilities {
-        CaptureCapabilities(isHDRSupported: isHDRSupported)
+        CaptureCapabilities(isHDRVideoSupported: isHDRSupported)
     }
 
     // A delegate object to respond to movie capture events.

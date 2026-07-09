@@ -1,16 +1,18 @@
 import Foundation
 
-/// Immutable configuration passed to CameraModel at init time.
-/// Defines the initial state of the camera — UI visibility, capture mode, quality, etc.
-public struct CameraConfiguration: Sendable {
-    public let captureMode: CaptureMode
-    public let qualityPrioritization: QualityPrioritization
-    public let isLivePhotoEnabled: Bool
-    public let isHDRVideoEnabled: Bool
-    public let imageFilter: ImageFilter
-    public let isToolbarVisible: Bool
-    public let isCaptureModeVisible: Bool
-    public let savesToGallery: Bool
+/// Configurable state for the camera.
+///
+/// Passed at init time to define defaults, and exposed as `camera.config` for live mutation.
+/// Changes to `config` are automatically applied to the capture pipeline.
+public struct CameraConfiguration: Sendable, Equatable {
+    public var captureMode: CaptureMode
+    public var qualityPrioritization: QualityPrioritization
+    public var isLivePhotoEnabled: Bool
+    public var isHDRVideoEnabled: Bool
+    public var imageFilter: ImageFilter
+    public var isToolbarVisible: Bool
+    public var isCaptureModeVisible: Bool
+    public var savesToGallery: Bool
 
     public init(
         captureMode: CaptureMode = .photo,

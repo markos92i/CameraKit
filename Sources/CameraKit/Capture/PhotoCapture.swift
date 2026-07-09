@@ -30,7 +30,7 @@ final class PhotoCapture: OutputService, @unchecked Sendable {
     private var photoOutput: AVCapturePhotoOutput { output }
     
     // The current capabilities available.
-    private(set) var capabilities: CaptureCapabilities = .unknown
+    private(set) var capabilities: CaptureCapabilities = .init()
     
     // A count of Live Photo captures currently in progress.
     private var livePhotoCount = 0
@@ -138,7 +138,7 @@ final class PhotoCapture: OutputService, @unchecked Sendable {
     }
     
     private func updateCapabilities(for device: AVCaptureDevice) {
-        capabilities = CaptureCapabilities(isLivePhotoCaptureSupported: photoOutput.isLivePhotoCaptureSupported)
+        capabilities = CaptureCapabilities(isLivePhotoSupported: photoOutput.isLivePhotoCaptureSupported)
     }
 }
 

@@ -12,7 +12,7 @@ public struct CameraView<CameraModel: Camera>: View {
     private var handler: ((CaptureResult) -> Void)?
 
     private var captured: Bool { camera.captureSnapshot != nil }
-    private var disabled: Bool { camera.isProcessing || camera.status.disabled }
+    private var disabled: Bool { camera.isProcessing || camera.isSwitching || camera.status.disabled }
 
     /// Zoom factor at the start of a pinch gesture.
     @State private var zoomAtGestureStart: CGFloat = 1.0
@@ -26,7 +26,7 @@ public struct CameraView<CameraModel: Camera>: View {
         CameraPreview(preview: camera.preview, videoGravity: .resizeAspectFill)
             .onCameraCaptureEvent { event in
                 guard event.phase == .ended else { return }
-                switch camera.captureMode {
+                switch camera.config.captureMode {
                 case .photo: Task { await camera.capturePhoto() }
                 case .video: Task { await camera.toggleRecording() }
                 }
@@ -66,8 +66,8 @@ public struct CameraView<CameraModel: Camera>: View {
             .disabled(disabled)
             .animation(.easeInOut, value: disabled)
             .animation(.easeInOut, value: captured)
-            .onChange(of: camera.imageFilter) { _, _ in clear() }
-            .onChange(of: camera.captureMode) { _, _ in clear() }
+            .onChange(of: camera.config.imageFilter) { _, _ in clear() }
+            .onChange(of: camera.config.captureMode) { _, _ in clear() }
             .background(.ultraThinMaterial)
             .background {
                 CameraPreview(preview: camera.alternativePreview, videoGravity: .resizeAspectFill)
@@ -87,7 +87,7 @@ public struct CameraView<CameraModel: Camera>: View {
     
     @ViewBuilder
     var Indicators: some View {
-        switch camera.captureMode {
+        switch camera.config.captureMode {
         case .photo:
             LiveBadge()
                 .opacity(camera.captureActivity.isLivePhoto ? 1 : 0)
@@ -99,25 +99,27 @@ public struct CameraView<CameraModel: Camera>: View {
     @ViewBuilder
     var TopToolbar: some View {
         HStack(spacing: 20) {
-            switch camera.captureMode {
+            switch camera.config.captureMode {
             case .photo:    FilterPicker(camera: camera)
             default:        EmptyView()
             }
             
             Spacer()
             
-            switch camera.captureMode {
+            switch camera.config.captureMode {
             case .photo:
-                LivePhotoButton(camera: camera)
+                if camera.capabilities.isLivePhotoSupported {
+                    LivePhotoButton(camera: camera)
+                }
                 
                 QualityPicker(camera: camera)
             case .video:
-                if camera.isHDRVideoSupported {
+                if camera.capabilities.isHDRVideoSupported {
                     HDRButton(camera: camera)
                 }
             }
         }
-        .animation(.easeInOut, value: camera.captureMode)
+        .animation(.easeInOut, value: camera.config.captureMode)
     }
     
     @ViewBuilder
@@ -180,8 +182,8 @@ public struct CameraView<CameraModel: Camera>: View {
             .overlay(alignment: .top) {
                 TopToolbar
                     .padding()
-                    .opacity(camera.isToolbarVisible ? 1 : 0)
-                    .disabled(!camera.isToolbarVisible)
+                    .opacity(camera.config.isToolbarVisible ? 1 : 0)
+                    .disabled(!camera.config.isToolbarVisible)
             }
             .overlay(alignment: .bottom) {
                 CaptureModeView(camera: camera)

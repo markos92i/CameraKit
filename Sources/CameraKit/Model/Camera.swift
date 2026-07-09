@@ -15,6 +15,13 @@ import AVFoundation
 @MainActor
 public protocol Camera: AnyObject, Observable, Sendable {
     
+    // MARK: - Configuration
+    
+    /// The camera's live configuration. Mutate this to change capture mode, filters, HDR, etc.
+    var config: CameraConfiguration { get set }
+    
+    // MARK: - Runtime state (read-only)
+    
     /// Provides the current status of the camera.
     var status: CameraStatus { get }
     
@@ -34,9 +41,6 @@ public protocol Camera: AnyObject, Observable, Sendable {
     /// Image filter for the preview
     var previewFilter: (sending CIImage) async -> sending CIImage { get }
     
-    /// A value that indicates how to balance the photo capture quality versus speed.
-    var imageFilter: ImageFilter { get set }
-    
     /// Starts the camera capture pipeline.
     func start() async
     
@@ -46,17 +50,8 @@ public protocol Camera: AnyObject, Observable, Sendable {
     /// A Boolean value that indicates whether the app is currently switching anything.
     var isSwitching: Bool { get }
     
-    /// The capture mode, which can be photo or video.
-    var captureMode: CaptureMode { get set }
-    
-    /// A Boolean value that indicates whether the camera is currently switching capture modes.
-    var isSwitchingModes: Bool { get }
-    
     /// Switches between video devices available on the host system.
     func switchVideoDevices() async
-    
-    /// A Boolean value that indicates whether the camera is currently switching video devices.
-    var isSwitchingDevices: Bool { get }
     
     /// An enum value that indicates the direction of the user's swipe gesture
     var swipeDirection: SwipeDirection { get set }
@@ -73,35 +68,20 @@ public protocol Camera: AnyObject, Observable, Sendable {
     /// Performs a one-time automatic focus and exposure operation.
     func focusAndExpose(at point: CGPoint) async
     
-    /// A Boolean value that indicates whether to capture Live Photos when capturing stills.
-    var isLivePhotoEnabled: Bool { get set }
-    
-    /// A value that indicates how to balance the photo capture quality versus speed.
-    var qualityPrioritization: QualityPrioritization { get set }
-    
     /// Captures a photo and writes it to the user's photo library.
     func capturePhoto() async -> Photo?
     
     /// A Boolean value that indicates whether to show visual feedback when capture begins.
     var shouldFlashScreen: Bool { get }
     
-    /// A Boolean that indicates whether the camera supports HDR video recording.
-    var isHDRVideoSupported: Bool { get }
-    
-    /// A Boolean value that indicates whether camera enables HDR video recording.
-    var isHDRVideoEnabled: Bool { get set }
+    /// Hardware capabilities of the current device and configuration.
+    var capabilities: CaptureCapabilities { get }
     
     /// Starts or stops recording a movie, and writes it to the user's photo library when complete.
     func toggleRecording() async -> Movie?
         
     /// An error if the camera encountered a problem.
     var error: Error? { get }
-        
-    /// UI toolbar buttons
-    var isToolbarVisible: Bool { get }
-    
-    /// UI camera mode switcher
-    var isCaptureModeVisible: Bool { get }
     
     /// A thumbnail image for the most recent photo or video capture.
     var thumbnail: CGImage? { get }
@@ -109,13 +89,7 @@ public protocol Camera: AnyObject, Observable, Sendable {
     /// The current capture snapshot (photo or video), held until accepted or discarded.
     var captureSnapshot: CaptureSnapshot? { get set }
     
-    /// Synchronize the state of the camera with the persisted values.
-    func syncState() async
-    
     /// Resets capture state: cancels pending detection, clears snapshot and metadata.
     func clearCapture()
 }
 
-public extension Camera {
-    var isSwitching: Bool { isSwitchingDevices || isSwitchingModes }
-}

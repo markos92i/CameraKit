@@ -24,10 +24,22 @@ struct SendableDisplayLayer: @unchecked Sendable {
 @MainActor
 @Observable
 public final class CameraModel: Camera {
+    
+    // MARK: - Preview layers
+    
     /// A preview layer that presents the captured video frames.
     public let preview: AVSampleBufferDisplayLayer = AVSampleBufferDisplayLayer()
     public let alternativePreview: AVSampleBufferDisplayLayer = AVSampleBufferDisplayLayer()
 
+    // MARK: - Configuration
+    
+    /// The camera's live configuration. Changes are applied to the capture pipeline automatically.
+    public var config: CameraConfiguration {
+        didSet { applyConfigChanges(from: oldValue, to: config) }
+    }
+
+    // MARK: - Runtime state
+    
     /// Metadata to highlight features or focus points over the preview.
     public var featureMetadata: [CaptureMetadata] = []
     public private(set) var focusPoints: [FocusIndicator] = []
@@ -41,35 +53,252 @@ public final class CameraModel: Camera {
     /// The current state of photo or movie capture.
     public private(set) var captureActivity: CaptureActivity = .idle
     
-    /// A Boolean value that indicates whether the app is currently switching video devices.
-    public private(set) var isSwitchingDevices = false
-        
-    /// A Boolean value that indicates whether the app is currently switching capture modes.
-    public private(set) var isSwitchingModes = false
+    /// A Boolean value that indicates whether the app is currently switching devices or modes.
+    public private(set) var isSwitching = false
         
     /// A Boolean value that indicates whether to show visual feedback when capture begins.
     public private(set) var shouldFlashScreen = false
-    
-    /// Persistent state shared between the app and capture extension.
-    private var cameraState = CameraState()
 
     /// An enum value that indicates the direction of the user's swipe gesture
     public var swipeDirection: SwipeDirection = .left
         
     /// A Boolean value that indicates whether the camera is doing some process work.
     public var isProcessing = false
-            
-    /// A value that indicates which filter is being applied to the camera photograms..
-    public var imageFilter: ImageFilter = .none {
-        didSet { cameraState.imageFilter = imageFilter }
-    }
 
+    /// Hardware capabilities of the current device and configuration.
+    public private(set) var capabilities = CaptureCapabilities()
+
+    /// The current zoom factor applied to the camera.
+    public private(set) var zoomFactor: CGFloat = 1.0
+
+    /// A thumbnail image for the most recent photo or video capture.
+    public var thumbnail: CGImage? = nil
+
+    /// The current capture snapshot (photo or video), held until accepted or discarded.
+    public var captureSnapshot: CaptureSnapshot? = nil
+
+    // MARK: - Preview filter
+    
     /// An function to manipulate the image from the preview stream
     public var previewFilter: (sending CIImage) async -> sending CIImage {
-        switch self.imageFilter {
+        switch config.imageFilter {
         case .none: { $0 }
         case .cards: { self.detect(in: $0) { await self.detectRectangle(in: $0) }; return $0 }
         case .text: { self.detect(in: $0) { await self.detectText(in: $0) }; return $0 }
+        }
+    }
+
+    // MARK: - Private
+    
+    /// An object that saves captured media to a person's Photos library.
+    private let mediaLibrary = MediaLibrary()
+    
+    /// Task for vision detection — acts as natural throttle (skips frames while busy).
+    private var detectionTask: Task<Void, Never>?
+
+    /// An object that manages the app's capture functionality.
+    private let captureService: CaptureService
+
+    // MARK: - Init
+
+    public init(configuration: CameraConfiguration = CameraConfiguration()) {
+        self.config = configuration
+        let sendableLayers: [SendableDisplayLayer] = [.init(layer: preview), .init(layer: alternativePreview)]
+        captureService = CaptureService(previewLayers: sendableLayers)
+    }
+    
+    // MARK: - Starting the camera
+    
+    /// Start the camera and begin the stream of data.
+    public func start() async {
+        guard await captureService.isAuthorized else {
+            status = .unauthorized
+            return
+        }
+        do {
+            try await captureService.start(captureMode: config.captureMode, isHDRVideoEnabled: config.isHDRVideoEnabled)
+            await captureService.startPreviewing()
+            observeState()
+            status = .running
+        } catch {
+            print("Failed to start capture service. \(error)")
+            status = .failed
+        }
+    }
+    
+    // MARK: - Stopping the camera
+    
+    /// Stop the camera session and data stream.
+    public func stop() async {
+        await captureService.stop()
+    }
+        
+    /// Resets capture state: cancels pending detection, clears snapshot and metadata.
+    public func clearCapture() {
+        detectionTask?.cancel()
+        detectionTask = nil
+        captureSnapshot = nil
+        featureMetadata = []
+    }
+    
+    // MARK: - Device switching
+    
+    /// Selects the next available video device for capture.
+    public func switchVideoDevices() async {
+        guard status == .running else { return }
+        isSwitching = true
+        defer { isSwitching = false }
+        await captureService.selectNextVideoDevice()
+    }
+    
+    // MARK: - Photo capture
+    
+    /// Captures a photo and writes it to the user's Photos library.
+    public func capturePhoto() async -> Photo? {
+        guard status == .running else { return nil }
+        isProcessing = true
+        defer { isProcessing = false }
+        
+        let snapshotMetadata = featureMetadata
+        
+        // Stop detection during capture and animation
+        detectionTask?.cancel()
+        detectionTask = nil
+        
+        do {
+            let photoFeatures = PhotoFeatures(isLivePhotoEnabled: config.isLivePhotoEnabled, qualityPrioritization: config.qualityPrioritization)
+            let photo = try await captureService.capturePhoto(with: photoFeatures)
+            if config.savesToGallery { try await mediaLibrary.save(photo: photo) }
+            
+            let preview: UIImage? = switch config.imageFilter {
+            case .cards: await cropCard(from: photo.data)
+            default: UIImage(data: photo.data)
+            }
+            
+            if let preview {
+                captureSnapshot = .photo(preview: preview, raw: photo, metadata: snapshotMetadata)
+            }
+            
+            return photo
+        } catch {
+            self.error = error
+            return nil
+        }
+    }
+
+    /// Performs a focus and expose operation at the specified screen point.
+    public func focusAndExpose(at point: CGPoint) async {
+        guard status == .running else { return }
+        await captureService.focusAndExpose(at: point)
+    }
+
+    /// Sets the zoom factor, clamped to the device's supported range.
+    public func setZoom(_ factor: CGFloat) async {
+        guard status == .running else { return }
+        await captureService.setZoom(factor)
+        zoomFactor = await captureService.zoomFactor
+    }
+    
+    // MARK: - Video capture
+    
+    /// Toggles the state of recording.
+    public func toggleRecording() async -> Movie? {
+        guard status == .running else { return nil }
+        isProcessing = true
+        defer { isProcessing = false }
+
+        switch await captureService.captureActivity {
+        case .movieCapture:
+            do {
+                let movie = try await captureService.stopRecording()
+                if config.savesToGallery { try await mediaLibrary.save(movie: movie) }
+                captureSnapshot = .video(url: movie.url)
+                return movie
+            } catch {
+                self.error = error
+                return nil
+            }
+        default:
+            await captureService.startRecording()
+            return nil
+        }
+    }
+    
+    // MARK: - Config change handling
+    
+    /// Applies configuration changes to the capture pipeline when `config` is mutated.
+    private func applyConfigChanges(from oldValue: CameraConfiguration, to newValue: CameraConfiguration) {
+        guard status == .running else { return }
+        
+        if oldValue.captureMode != newValue.captureMode {
+            Task {
+                isSwitching = true
+                defer { isSwitching = false }
+                try? await captureService.setCaptureMode(newValue.captureMode)
+                if newValue.captureMode != .photo { config.imageFilter = .none }
+            }
+        }
+        
+        if oldValue.isHDRVideoEnabled != newValue.isHDRVideoEnabled, newValue.captureMode == .video {
+            Task { await captureService.setHDRVideoEnabled(newValue.isHDRVideoEnabled) }
+        }
+    }
+    
+    // MARK: - Internal state observations
+    
+    private func observeState() {
+        Task {
+            for await thumbnail in mediaLibrary.thumbnails.compactMap({ $0 }) {
+                self.thumbnail = thumbnail
+            }
+        }
+        
+        Task {
+            for await activity in captureService.activityStream {
+                if activity.willCapture { flashScreen() }
+                else { captureActivity = activity }
+            }
+        }
+        
+        Task {
+            for await capabilities in captureService.capabilitiesStream {
+                self.capabilities = capabilities
+            }
+        }
+        
+        Task {
+            for await filter in captureService.filterStream {
+                config.imageFilter = filter
+            }
+        }
+        
+        Task {
+            var dismissTask: Task<Void, Never>?
+            for await point in captureService.focusPointStream {
+                dismissTask?.cancel()
+                focusPoints = [.init(position: point)]
+                dismissTask = Task {
+                    try? await Task.sleep(for: .seconds(1.2))
+                    guard !Task.isCancelled else { return }
+                    focusPoints.removeAll()
+                }
+            }
+        }
+        
+        Task {
+            for await image in captureService.previewStream {
+                guard config.imageFilter != .none else { continue }
+                _ = await previewFilter(image)
+            }
+        }
+    }
+    
+    // MARK: - Private helpers
+    
+    private func flashScreen() {
+        shouldFlashScreen = true
+        withAnimation(.easeInOut(duration: 0.1)) {
+            shouldFlashScreen = false
         }
     }
 
@@ -99,172 +328,13 @@ public final class CameraModel: Camera {
         }
     }
 
-    /// A Boolean that indicates whether the camera supports HDR video recording.
-    public private(set) var isHDRVideoSupported = false
-                    
-    /// UI camera mode switcher
-    public var isToolbarVisible: Bool = false {
-        didSet { cameraState.isToolbarVisible = isToolbarVisible }
-    }
-
-    public var isCaptureModeVisible: Bool = false {
-        didSet { cameraState.isCaptureModeVisible = isCaptureModeVisible }
-    }
-
-    /// An object that saves captured media to a person's Photos library.
-    private let mediaLibrary = MediaLibrary()
-    
-    /// Task for vision detection — acts as natural throttle (skips frames while busy).
-    private var detectionTask: Task<Void, Never>?
-
-    /// An object that manages the app's capture functionality.
-    private let captureService: CaptureService
-    
-    /// A thumbnail image for the most recent photo or video capture.
-    public var thumbnail: CGImage? = nil
-
-    /// The current capture snapshot (photo or video), held until accepted or discarded.
-    public var captureSnapshot: CaptureSnapshot? = nil
-
-    /// The initial configuration for this camera instance.
-    private let configuration: CameraConfiguration
-
-    public init(configuration: CameraConfiguration = CameraConfiguration()) {
-        self.configuration = configuration
-        let sendableLayers: [SendableDisplayLayer] = [.init(layer: preview), .init(layer: alternativePreview)]
-        captureService = CaptureService(previewLayers: sendableLayers)
-        
-        // Apply initial config
-        self.captureMode = configuration.captureMode
-        self.qualityPrioritization = configuration.qualityPrioritization
-        self.isLivePhotoEnabled = configuration.isLivePhotoEnabled
-        self.isHDRVideoEnabled = configuration.isHDRVideoEnabled
-        self.imageFilter = configuration.imageFilter
-        self.isToolbarVisible = configuration.isToolbarVisible
-        self.isCaptureModeVisible = configuration.isCaptureModeVisible
-    }
-    
-    // MARK: - Starting the camera
-    /// Start the camera and begin the stream of data.
-    public func start() async {
-        // Verify that the person authorizes the app to use device cameras and microphones.
-        guard await captureService.isAuthorized else {
-            status = .unauthorized
-            return
-        }
-        do {
-            // Start the capture service with the current state.
-            try await captureService.start(with: cameraState)
-            await captureService.startPreviewing()
-            observeState()
-            status = .running
-        } catch {
-            print("Failed to start capture service. \(error)")
-            status = .failed
-        }
-    }
-    
-    // MARK: - Stopping the camera
-    /// Stop the camera session and data stream.
-    public func stop() async {
-        await captureService.stop()
-    }
-        
-    /// Synchronizes the persistent camera state.
-    public func syncState() async {
-        cameraState.isToolbarVisible = isToolbarVisible
-        cameraState.isCaptureModeVisible = isCaptureModeVisible
-        cameraState.captureMode = captureMode
-        cameraState.qualityPrioritization = qualityPrioritization
-        cameraState.isLivePhotoEnabled = isLivePhotoEnabled
-        cameraState.isVideoHDREnabled = isHDRVideoEnabled
-        cameraState.imageFilter = imageFilter
-    }
-    
-    public func clearCapture() {
-        detectionTask?.cancel()
-        detectionTask = nil
-        captureSnapshot = nil
-        featureMetadata = []
-    }
-    
-    // MARK: - Changing modes and devices
-    
-    /// A value that indicates the mode of capture for the camera.
-    public var captureMode = CaptureMode.photo {
-        didSet {
-            guard status == .running else { return }
-            Task {
-                isSwitchingModes = true
-                defer { isSwitchingModes = false }
-                // Update the configuration of the capture service for the new mode.
-                try? await captureService.setCaptureMode(captureMode)
-                // Update the persistent state value.
-                cameraState.captureMode = captureMode
-                
-                // Disable filters in video mode
-                if captureMode != .photo { imageFilter = .none }
-            }
-        }
-    }
-    
-    /// Selects the next available video device for capture.
-    public func switchVideoDevices() async {
-        guard status == .running else { return }
-        isSwitchingDevices = true
-        defer { isSwitchingDevices = false }
-        await captureService.selectNextVideoDevice()
-    }
-    
-    // MARK: - Photo capture
-    /// Captures a photo and writes it to the user's Photos library.
-    public func capturePhoto() async -> Photo? {
-        guard status == .running else { return nil }
-        isProcessing = true
-        defer { isProcessing = false }
-        
-        let snapshotMetadata = featureMetadata
-        
-        // Stop detection during capture and animation
-        detectionTask?.cancel()
-        detectionTask = nil
-        
-        do {
-            let photoFeatures = PhotoFeatures(isLivePhotoEnabled: isLivePhotoEnabled, qualityPrioritization: qualityPrioritization)
-            let photo = try await captureService.capturePhoto(with: photoFeatures)
-            if configuration.savesToGallery { try await mediaLibrary.save(photo: photo) }
-            
-            let preview: UIImage? = switch imageFilter {
-            case .cards: await cropCard(from: photo.data)
-            default: UIImage(data: photo.data)
-            }
-            
-            if let preview {
-                captureSnapshot = .photo(preview: preview, raw: photo, metadata: snapshotMetadata)
-            }
-            
-            return photo
-        } catch {
-            self.error = error
-            return nil
-        }
-    }
-
     /// Crops the detected rectangle from the full-resolution captured photo.
-    ///
-    /// Instead of reusing preview coordinates (which are in a different pixel space),
-    /// we run rectangle detection directly on the captured photo for precise alignment.
-    /// The EXIF orientation of the original photo is applied to the crop so it displays
-    /// correctly in the portrait-locked UI.
     private func cropCard(from data: Data) async -> UIImage? {
         guard let ciImage = CIImage(data: data) else { return nil }
-
-        // Detect rectangle directly on the captured photo — coordinates are in its own space
         guard let points = await FeatureDetection.rectangle(in: ciImage) else { return nil }
         let scaledPoints = CGPointUtils.scale(points, to: ciImage.extent.size)
         let cropped = ciImage.perspective(points: scaledPoints)
 
-        // Apply the same EXIF orientation as the original photo so the crop displays upright
         let orientation = ciImage.properties[kCGImagePropertyOrientation as String] as? UInt32
         let oriented: CIImage
         if let orientation, let exif = CGImagePropertyOrientation(rawValue: orientation) {
@@ -275,126 +345,4 @@ public final class CameraModel: Camera {
 
         return oriented.uiImage
     }
-    
-    /// A Boolean value that indicates whether to capture Live Photos when capturing stills.
-    public var isLivePhotoEnabled = true {
-        didSet { cameraState.isLivePhotoEnabled = isLivePhotoEnabled }
-    }
-    
-    /// A value that indicates how to balance the photo capture quality versus speed.
-    public var qualityPrioritization = QualityPrioritization.quality {
-        didSet { cameraState.qualityPrioritization = qualityPrioritization }
-    }
-    
-    /// Performs a focus and expose operation at the specified screen point.
-    public func focusAndExpose(at point: CGPoint) async {
-        guard status == .running else { return }
-        await captureService.focusAndExpose(at: point)
-    }
-
-    /// The current zoom factor applied to the camera.
-    public private(set) var zoomFactor: CGFloat = 1.0
-
-    /// Sets the zoom factor, clamped to the device's supported range.
-    public func setZoom(_ factor: CGFloat) async {
-        guard status == .running else { return }
-        await captureService.setZoom(factor)
-        zoomFactor = await captureService.zoomFactor
-    }
-    
-    /// Sets the `showCaptureFeedback` state to indicate that capture is underway.
-    private func flashScreen() {
-        shouldFlashScreen = true
-        withAnimation(.easeInOut(duration: 0.1)) {
-            shouldFlashScreen = false
-        }
-    }
-    
-    // MARK: - Video capture
-    /// A Boolean value that indicates whether the camera captures video in HDR format.
-    public var isHDRVideoEnabled = false {
-        didSet {
-            guard status == .running, captureMode == .video else { return }
-            Task {
-                await captureService.setHDRVideoEnabled(isHDRVideoEnabled)
-                // Update the persistent state value.
-                cameraState.isVideoHDREnabled = isHDRVideoEnabled
-            }
-        }
-    }
-    
-    /// Toggles the state of recording.
-    public func toggleRecording() async -> Movie? {
-        guard status == .running else { return nil }
-        isProcessing = true
-        defer { isProcessing = false }
-
-        switch await captureService.captureActivity {
-        case .movieCapture:
-            do {
-                let movie = try await captureService.stopRecording()
-                if configuration.savesToGallery { try await mediaLibrary.save(movie: movie) }
-                captureSnapshot = .video(url: movie.url)
-                return movie
-            } catch {
-                self.error = error
-                return nil
-            }
-        default:
-            await captureService.startRecording()
-            return nil
-        }
-    }
-    
-    // MARK: - Internal state observations
-    // Set up camera's state observations.
-    private func observeState() {
-        Task {
-            // Await new thumbnails that the media library generates when saving a file.
-            for await thumbnail in mediaLibrary.thumbnails.compactMap({ $0 }) {
-                self.thumbnail = thumbnail
-            }
-        }
-        
-        Task {
-            for await activity in captureService.activityStream {
-                if activity.willCapture { flashScreen() }
-                else { captureActivity = activity }
-            }
-        }
-        
-        Task {
-            for await capabilities in captureService.capabilitiesStream {
-                isHDRVideoSupported = capabilities.isHDRSupported
-                cameraState.isVideoHDRSupported = capabilities.isHDRSupported
-            }
-        }
-        
-        Task {
-            for await filter in captureService.filterStream {
-                imageFilter = filter
-            }
-        }
-        
-        Task {
-            var dismissTask: Task<Void, Never>?
-            for await point in captureService.focusPointStream {
-                dismissTask?.cancel()
-                focusPoints = [.init(position: point)]
-                dismissTask = Task {
-                    try? await Task.sleep(for: .seconds(1.2))
-                    guard !Task.isCancelled else { return }
-                    focusPoints.removeAll()
-                }
-            }
-        }
-        
-        Task {
-            for await image in captureService.previewStream {
-                guard imageFilter != .none else { continue }
-                _ = await previewFilter(image)
-            }
-        }
-    }
 }
-

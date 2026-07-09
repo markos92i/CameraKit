@@ -38,7 +38,7 @@ struct CaptureOverlayView: View {
 
                 switch camera.captureSnapshot {
                 case .photo(let photo, _, let metadata):
-                    switch camera.imageFilter {
+                    switch camera.config.imageFilter {
                     case .cards:
                         CardCaptureAnimationView(
                             photo: photo,

@@ -15,7 +15,7 @@ struct CaptureModeView<CameraModel: Camera>: View {
         HStack(spacing: 0) {
             ForEach(CaptureMode.allCases) { value in
                 Button {
-                    camera.captureMode = value
+                    camera.config.captureMode = value
                 } label: {
                     Label(value.description, systemImage: value.systemName)
                         .labelStyle(.iconOnly)
@@ -23,20 +23,20 @@ struct CaptureModeView<CameraModel: Camera>: View {
                         .frame(width: 16, height: 16)
                         .padding(.vertical, 8)
                         .padding(.horizontal, 16)
-                        .background(Capsule().fill(.black.opacity(camera.captureMode == value ? 0.4 : 0)))
+                        .background(Capsule().fill(.black.opacity(camera.config.captureMode == value ? 0.4 : 0)))
                         .padding(4)
                 }
             }
         }
         .background(Capsule().fill(.black.opacity(0.3)))
         .disabled(camera.captureActivity.isRecording)
-        .disabled(!camera.isCaptureModeVisible)
-        .opacity(camera.isCaptureModeVisible ? 1 : 0)
+        .disabled(!camera.config.isCaptureModeVisible)
+        .opacity(camera.config.isCaptureModeVisible ? 1 : 0)
         .onChange(of: camera.swipeDirection) { _, newValue in
-            guard !camera.captureActivity.isRecording, !camera.isSwitchingDevices else { return }
+            guard !camera.captureActivity.isRecording, !camera.isSwitching else { return }
             
-            if newValue.isHorizontal, camera.isCaptureModeVisible {
-                camera.captureMode = camera.captureMode.toggle()
+            if newValue.isHorizontal, camera.config.isCaptureModeVisible {
+                camera.config.captureMode = camera.config.captureMode.toggle()
             } else {
                 Task { await camera.switchVideoDevices() }
             }

@@ -15,37 +15,26 @@ public final class PreviewCameraModel: Camera {
 
     public private(set) var status = CameraStatus.unknown
     public private(set) var captureActivity = CaptureActivity.idle
-    public var captureMode = CaptureMode.photo
-    public private(set) var isSwitchingModes = false
     public var error: Error?
     public var previewFilter: (sending CIImage) async -> sending CIImage = { $0 }
-    public var imageFilter: ImageFilter = .none
-    public var isSwitchingDevices: Bool = false
+    public var isSwitching: Bool = false
     public var swipeDirection: SwipeDirection = .left
     public var isProcessing: Bool = false
-    public var isLivePhotoEnabled: Bool = false
-    public var qualityPrioritization: QualityPrioritization = .quality
     public var shouldFlashScreen: Bool = false
-    public var isHDRVideoSupported: Bool = false
-    public var isHDRVideoEnabled: Bool = false
-    public var isToolbarVisible: Bool = false
-    public var isCaptureModeVisible: Bool = false
+    public var capabilities = CaptureCapabilities()
     public var thumbnail: CGImage? = nil
     public var captureSnapshot: CaptureSnapshot? = nil
+    public var zoomFactor: CGFloat = 1.0
+
+    public var config: CameraConfiguration
 
     public init(captureMode: CaptureMode = .photo, status: CameraStatus = .unknown) {
-        self.captureMode = captureMode
+        self.config = CameraConfiguration(captureMode: captureMode)
         self.status = status
     }
 
     public init(configuration: CameraConfiguration) {
-        self.captureMode = configuration.captureMode
-        self.qualityPrioritization = configuration.qualityPrioritization
-        self.isLivePhotoEnabled = configuration.isLivePhotoEnabled
-        self.isHDRVideoEnabled = configuration.isHDRVideoEnabled
-        self.imageFilter = configuration.imageFilter
-        self.isToolbarVisible = configuration.isToolbarVisible
-        self.isCaptureModeVisible = configuration.isCaptureModeVisible
+        self.config = configuration
     }
 
     public func start() async {
@@ -58,8 +47,6 @@ public final class PreviewCameraModel: Camera {
 
     public func focusAndExpose(at point: CGPoint) async {}
 
-    public var zoomFactor: CGFloat = 1.0
-
     public func setZoom(_ factor: CGFloat) async {
         zoomFactor = max(1.0, min(factor, 10.0))
     }
@@ -68,7 +55,6 @@ public final class PreviewCameraModel: Camera {
         shouldFlashScreen = true
         withAnimation(.easeInOut(duration: 0.1)) { shouldFlashScreen = false }
 
-        // Generate a simulated capture for preview purposes
         let renderer = UIGraphicsImageRenderer(size: CGSize(width: 400, height: 600))
         let image = renderer.image { context in
             let colors = [UIColor.systemBlue.cgColor, UIColor.systemPurple.cgColor]
@@ -85,7 +71,6 @@ public final class PreviewCameraModel: Camera {
     public func toggleRecording() async -> Movie? {
         if captureActivity.isRecording {
             captureActivity = .idle
-            // Simulate a recorded video with a placeholder URL
             let url = URL.temporaryDirectory.appending(component: "preview-video.mov")
             captureSnapshot = .video(url: url)
             return Movie(url: url)
@@ -96,13 +81,11 @@ public final class PreviewCameraModel: Camera {
     }
 
     public func switchVideoDevices() async {
-        isSwitchingModes = true
-        captureMode = captureMode.toggle()
+        isSwitching = true
+        config.captureMode = config.captureMode.toggle()
         try? await Task.sleep(for: .seconds(0.3))
-        isSwitchingModes = false
+        isSwitching = false
     }
-
-    public func syncState() async {}
 
     public func clearCapture() {
         captureSnapshot = nil

@@ -16,7 +16,7 @@ actor CaptureService {
     /// A value that indicates whether the capture service is idle or capturing a photo or movie.
     private(set) var captureActivity: CaptureActivity = .idle
     /// A value that indicates the current capture capabilities of the service.
-    private(set) var captureCapabilities: CaptureCapabilities = .unknown
+    private(set) var captureCapabilities: CaptureCapabilities = .init()
     /// A Boolean value that indicates whether a higher priority event, like receiving a phone call, interrupts the app.
     private(set) var isInterrupted = false
     /// A Boolean value that indicates whether the user enables HDR video capture.
@@ -142,10 +142,10 @@ actor CaptureService {
     }
     
     // MARK: - Capture session life cycle
-    func start(with state: CameraState) async throws {
+    func start(captureMode: CaptureMode, isHDRVideoEnabled: Bool) async throws {
         // Set initial operating state.
-        captureMode = state.captureMode
-        isHDRVideoEnabled = state.isVideoHDREnabled
+        self.captureMode = captureMode
+        self.isHDRVideoEnabled = isHDRVideoEnabled
         
         // Exit early if not authorized or the session is already running.
         guard await isAuthorized, !captureSession.isRunning else { return }
@@ -551,11 +551,11 @@ actor CaptureService {
     private func updateCaptureCapabilities() {
         // Update the output service configuration.
         outputServices.forEach { $0.updateConfiguration(for: currentDevice) }
-        // Set the capture service's capabilities for the selected mode.
-        switch captureMode {
-        case .photo: captureCapabilities = photoCapture.capabilities
-        case .video: captureCapabilities = movieCapture.capabilities
-        }
+        // Combine capabilities from both capture services.
+        captureCapabilities = CaptureCapabilities(
+            isLivePhotoSupported: photoCapture.capabilities.isLivePhotoSupported,
+            isHDRVideoSupported: movieCapture.capabilities.isHDRVideoSupported
+        )
         capabilitiesContinuation.yield(captureCapabilities)
     }
     

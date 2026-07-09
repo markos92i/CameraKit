@@ -32,7 +32,7 @@ struct CaptureButton<CameraModel: Camera>: View {
     
     @ViewBuilder
     var captureButton: some View {
-        switch camera.captureMode {
+        switch camera.config.captureMode {
         case .photo:
             PhotoCaptureButton {
                 Task { await camera.capturePhoto() }

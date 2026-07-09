@@ -20,6 +20,6 @@ struct CameraSwitchButton<CameraModel: Camera>: View {
         .buttonStyle(CameraButtonStyle(size: .medium))
         .disabled(camera.captureActivity.isRecording)
         .opacity(camera.captureActivity.isRecording ? 0 : 1)
-        .allowsHitTesting(!camera.isSwitchingDevices)
+        .allowsHitTesting(!camera.isSwitching)
     }
 }

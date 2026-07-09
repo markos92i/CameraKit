@@ -12,13 +12,13 @@ struct FilterPicker<CameraModel: Camera>: View {
     
     var body: some View {
         Menu {
-            Picker("filtros", selection: $camera.imageFilter) {
+            Picker("filtros", selection: $camera.config.imageFilter) {
                 ForEach(ImageFilter.allCases) {
                     Text($0.description)
                 }
             }
         } label: {
-            Label("cambiar filtros", systemImage: camera.imageFilter.systemName)
+            Label("cambiar filtros", systemImage: camera.config.imageFilter.systemName)
                 .labelStyle(CameraButtonLabel(size: .small, icon: true, text: false))
         }
     }

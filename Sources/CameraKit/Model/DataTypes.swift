@@ -110,18 +110,17 @@ public struct PhotoFeatures: Sendable {
     public let qualityPrioritization: QualityPrioritization
 }
 
-/// A structure that represents the capture capabilities of `CaptureService` in
-/// its current configuration.
-struct CaptureCapabilities {
-    let isLivePhotoCaptureSupported: Bool
-    let isHDRSupported: Bool
+/// Hardware capabilities reported by the capture pipeline.
+public struct CaptureCapabilities: Sendable, Equatable {
+    /// Whether the current device supports Live Photo capture.
+    public let isLivePhotoSupported: Bool
+    /// Whether the current device supports HDR video recording.
+    public let isHDRVideoSupported: Bool
     
-    init(isLivePhotoCaptureSupported: Bool = false, isHDRSupported: Bool = false) {
-        self.isLivePhotoCaptureSupported = isLivePhotoCaptureSupported
-        self.isHDRSupported = isHDRSupported
+    public init(isLivePhotoSupported: Bool = false, isHDRVideoSupported: Bool = false) {
+        self.isLivePhotoSupported = isLivePhotoSupported
+        self.isHDRVideoSupported = isHDRVideoSupported
     }
-    
-    static let unknown = CaptureCapabilities()
 }
 
 public enum QualityPrioritization: Int, Identifiable, CaseIterable, CustomStringConvertible, Codable, Sendable {
