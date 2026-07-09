@@ -132,6 +132,9 @@
         }
       }
     },
+    "Error" : {
+
+    },
     "filtros" : {
       "localizations" : {
         "en" : {
@@ -291,6 +294,9 @@
           }
         }
       }
+    },
+    "OK" : {
+
     },
     "Tarjetas" : {
       "localizations" : {

@@ -6,7 +6,7 @@
 //
 
 import UIKit
-@preconcurrency import AVFoundation
+import AVFoundation
 import CoreImage
 
 /// An actor that manages the capture pipeline, which includes the capture session, device inputs, and capture outputs.
@@ -65,13 +65,13 @@ actor CaptureService {
     // An object the service uses to retrieve capture devices.
     private let deviceLookup = DeviceLookup()
 
-    // An object that monitors the state of the system-preferred camera.
-    private let systemPreferredCamera = SystemPreferredCameraObserver()
-
     // An object that monitors video device rotations.
     private var rotationCoordinator: AVCaptureDevice.RotationCoordinator!
     private var rotationObservers = [AnyObject]()
     private let previewLayers: [AVSampleBufferDisplayLayer]
+
+    // An observer for system-preferred camera changes.
+    private let systemPreferredCamera = SystemPreferredCameraObserver()
 
     // A Boolean value that indicates whether the actor finished its required configuration.
     private var isSetUp = false
@@ -82,16 +82,6 @@ actor CaptureService {
     // Sets the session queue as the actor's executor.
     nonisolated var unownedExecutor: UnownedSerialExecutor {
         sessionQueue.asUnownedSerialExecutor()
-    }
-    
-    private var isUsingFrontCaptureDevice: Bool { activeVideoInput?.device.position == .front }
-    
-    private var videoPreviewLayer: AVCaptureVideoPreviewLayer {
-        // Access the capture session's connected preview layer.
-        guard let previewLayer = captureSession.connections.compactMap({ $0.videoPreviewLayer }).first else {
-            fatalError("The app is misconfigured. The capture session should have a connection to a preview layer.")
-        }
-        return previewLayer
     }
 
     init(previewLayers: [SendableDisplayLayer]) {
@@ -232,7 +222,7 @@ actor CaptureService {
     // The device for the active video input.
     private var currentDevice: AVCaptureDevice {
         guard let device = activeVideoInput?.device else {
-            fatalError("No device found for current video input.")
+            preconditionFailure("[CameraKit] No device found for current video input. Ensure start() completed successfully.")
         }
         return device
     }
@@ -349,9 +339,7 @@ actor CaptureService {
     
     /// Create a new rotation coordinator for the specified device and observe its state to monitor rotation changes.
     private func createRotationCoordinator(for device: AVCaptureDevice) {
-        guard let previewLayer = previewLayers.first else {
-            fatalError("No previewLayer connection")
-        }
+        guard let previewLayer = previewLayers.first else { return }
         // Create a new rotation coordinator for this device.
         rotationCoordinator = AVCaptureDevice.RotationCoordinator(device: device, previewLayer: previewLayer)
         
@@ -379,13 +367,8 @@ actor CaptureService {
     }
     
     private func updatePreviewRotation(_ angle: CGFloat) {
-        guard let videoConnection = previewCapture.output.connection(with: .video) else {
-            fatalError("No video connection")
-        }
-
-        guard let videoInput = activeVideoInput else {
-            fatalError("No video input")
-        }
+        guard let videoConnection = previewCapture.output.connection(with: .video),
+              let videoInput = activeVideoInput else { return }
 
         do {
             try currentDevice.lockForConfiguration()
@@ -400,7 +383,7 @@ actor CaptureService {
             }
             currentDevice.unlockForConfiguration()
         } catch {
-            fatalError("Couldn't update AVCaptureVideoDataOutput connection rotation.")
+            print("Unable to update preview rotation. \(error)")
         }
     }
     
@@ -456,8 +439,10 @@ actor CaptureService {
     private func observeSubjectAreaChanges(of device: AVCaptureDevice) {
         // Cancel the previous observation task.
         subjectAreaChangeTask?.cancel()
+        let deviceID = device.uniqueID
         subjectAreaChangeTask = Task {
-            for await _ in NotificationCenter.default.notifications(named: AVCaptureDevice.subjectAreaDidChangeNotification, object: device).compactMap({ _ in true }) {
+            for await _ in NotificationCenter.default.notifications(named: AVCaptureDevice.subjectAreaDidChangeNotification)
+                .filter({ ($0.object as? AVCaptureDevice)?.uniqueID == deviceID }) {
                 // Perform a system-initiated focus and expose.
                 try? focusAndExpose(at: CGPoint(x: 0.5, y: 0.5), isUserInitiated: false)
             }

@@ -7,13 +7,12 @@
 
 import AVFoundation
 
-/// An object that provides an asynchronous stream of device IDs representing the system-preferred camera.
+/// Provides an async stream of device IDs representing the system-preferred camera.
 ///
-/// Emits the `uniqueID` of the preferred device (a `String`, which is `Sendable`) to avoid
-/// passing non-Sendable `AVCaptureDevice` across isolation boundaries.
-final class SystemPreferredCameraObserver: NSObject {
-
-    private let systemPreferredKeyPath = "systemPreferredCamera"
+/// Observing `AVCaptureDevice.systemPreferredCamera` requires class-level KVO (addObserver on the
+/// type itself), which cannot use the closure-based `observe(_:options:changeHandler:)` API.
+/// This helper encapsulates that pattern cleanly.
+final class SystemPreferredCameraObserver: NSObject, Sendable {
 
     let changes: AsyncStream<String>
     private let continuation: AsyncStream<String>.Continuation
@@ -22,24 +21,18 @@ final class SystemPreferredCameraObserver: NSObject {
         let (changes, continuation) = AsyncStream.makeStream(of: String.self)
         self.changes = changes
         self.continuation = continuation
-
         super.init()
-
-        AVCaptureDevice.self.addObserver(self, forKeyPath: systemPreferredKeyPath, options: [.new], context: nil)
+        AVCaptureDevice.self.addObserver(self, forKeyPath: "systemPreferredCamera", options: .new, context: nil)
     }
 
     deinit {
-        AVCaptureDevice.self.removeObserver(self, forKeyPath: systemPreferredKeyPath)
+        AVCaptureDevice.self.removeObserver(self, forKeyPath: "systemPreferredCamera")
         continuation.finish()
     }
 
     override func observeValue(forKeyPath keyPath: String?, of object: Any?, change: [NSKeyValueChangeKey: Any]?, context: UnsafeMutableRawPointer?) {
-        switch keyPath {
-        case systemPreferredKeyPath:
-            guard let device = change?[.newKey] as? AVCaptureDevice else { return }
-            continuation.yield(device.uniqueID)
-        default:
-            super.observeValue(forKeyPath: keyPath, of: object, change: change, context: context)
-        }
+        guard keyPath == "systemPreferredCamera",
+              let device = change?[.newKey] as? AVCaptureDevice else { return }
+        continuation.yield(device.uniqueID)
     }
 }
