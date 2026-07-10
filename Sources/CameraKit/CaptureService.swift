@@ -17,8 +17,6 @@ actor CaptureService {
     private(set) var captureActivity: CaptureActivity = .idle
     /// A value that indicates the current capture capabilities of the service.
     private(set) var captureCapabilities: CaptureCapabilities = .init()
-    /// A Boolean value that indicates whether a higher priority event, like receiving a phone call, interrupts the app.
-    private(set) var isInterrupted = false
     /// A Boolean value that indicates whether the user enables HDR video capture.
     var isHDRVideoEnabled = false
     
@@ -40,6 +38,10 @@ actor CaptureService {
     /// An AsyncStream that emits focus points when autofocus is triggered.
     nonisolated let focusPointStream: AsyncStream<CGPoint>
     private let focusPointContinuation: AsyncStream<CGPoint>.Continuation
+
+    /// An AsyncStream that emits interruption state changes.
+    nonisolated let statusStream: AsyncStream<CameraStatus>
+    private let statusContinuation: AsyncStream<CameraStatus>.Continuation
 
     // The app's capture session.
     private let captureSession = AVCaptureSession()
@@ -103,6 +105,10 @@ actor CaptureService {
         let (focStream, focCont) = AsyncStream.makeStream(of: CGPoint.self)
         focusPointStream = focStream
         focusPointContinuation = focCont
+        
+        let (intStream, intCont) = AsyncStream.makeStream(of: CameraStatus.self)
+        statusStream = intStream
+        statusContinuation = intCont
         
         // Wire output services to emit activity through the stream
         photoCapture.onActivityChange = { [actCont] activity in
@@ -292,45 +298,38 @@ actor CaptureService {
     /// The implementation switches between the front and back cameras and, in iPadOS,
     /// connected external cameras.
     func selectNextVideoDevice() {
-        // Guard against calling when session isn't configured or no devices available.
+        guard isSetUp, let current = activeVideoInput?.device else { return }
+        
         let videoDevices = deviceLookup.cameras
-        guard isSetUp,
-              let current = activeVideoInput?.device,
-              let selectedIndex = videoDevices.firstIndex(of: current) else { return }
-
-        // Get the next index, wrapping around.
-        let nextIndex = (selectedIndex + 1) % videoDevices.count
-        let nextDevice = videoDevices[nextIndex]
         
-        // Change the session's active capture device.
-        changeCaptureDevice(to: nextDevice)
-        
-        // Set the new selection as the user's preferred camera.
-        AVCaptureDevice.userPreferredCamera = nextDevice
+        // Find the current device in the array. If not found (e.g. systemPreferred differs from
+        // discovery), pick the first device whose position differs from the current one.
+        if let selectedIndex = videoDevices.firstIndex(where: { $0.uniqueID == current.uniqueID }) {
+            let nextIndex = (selectedIndex + 1) % videoDevices.count
+            let nextDevice = videoDevices[nextIndex]
+            guard nextDevice.uniqueID != current.uniqueID else { return }
+            changeCaptureDevice(to: nextDevice)
+            AVCaptureDevice.userPreferredCamera = nextDevice
+        } else if let fallback = videoDevices.first(where: { $0.position != current.position }) ?? videoDevices.first {
+            changeCaptureDevice(to: fallback)
+            AVCaptureDevice.userPreferredCamera = fallback
+        }
     }
     
     // Changes the device the service uses for video capture.
     private func changeCaptureDevice(to device: AVCaptureDevice) {
-        // The service must have a valid video input prior to calling this method.
         guard let currentInput = activeVideoInput else { return }
         
-        // Bracket the following configuration in a begin/commit configuration pair.
         captureSession.beginConfiguration()
         defer { captureSession.commitConfiguration() }
         
-        // Remove the existing video input before attempting to connect a new one.
         captureSession.removeInput(currentInput)
         do {
-            // Attempt to connect a new input and device to the capture session.
             activeVideoInput = try addInput(for: device)
-            // Configure a new rotation coordinator for the new device.
             createRotationCoordinator(for: device)
-            // Register for device observations.
             observeSubjectAreaChanges(of: device)
-            // Update the service's advertised capabilities.
             updateCaptureCapabilities()
         } catch {
-            // Reconnect the existing camera on failure.
             captureSession.addInput(currentInput)
         }
     }
@@ -560,26 +559,32 @@ actor CaptureService {
             for await reason in NotificationCenter.default.notifications(named: AVCaptureSession.wasInterruptedNotification)
                 .compactMap({ $0.userInfo?[AVCaptureSessionInterruptionReasonKey] as AnyObject? })
                 .compactMap({ AVCaptureSession.InterruptionReason(rawValue: $0.integerValue) }) {
-                /// Set the `isInterrupted` state as appropriate.
-                isInterrupted = [.audioDeviceInUseByAnotherClient, .videoDeviceInUseByAnotherClient].contains(reason)
+                let isDeviceInterruption = [.audioDeviceInUseByAnotherClient, .videoDeviceInUseByAnotherClient].contains(reason)
+                if isDeviceInterruption { statusContinuation.yield(.interrupted) }
             }
         }
         
         Task {
-            // Await notification of the end of an interruption.
             for await _ in NotificationCenter.default.notifications(named: AVCaptureSession.interruptionEndedNotification).compactMap({ _ in () }) {
-                isInterrupted = false
+                statusContinuation.yield(.running)
             }
         }
         
         Task {
             for await error in NotificationCenter.default.notifications(named: AVCaptureSession.runtimeErrorNotification)
                 .compactMap({ $0.userInfo?[AVCaptureSessionErrorKey] as? AVError }) {
-                // If the system resets media services, the capture session stops running.
                 if error.code == .mediaServicesWereReset {
+                    // Media services were reset — try to restart the session.
+                    statusContinuation.yield(.failed)
                     if !captureSession.isRunning {
                         captureSession.startRunning()
                     }
+                    if captureSession.isRunning {
+                        statusContinuation.yield(.running)
+                    }
+                } else {
+                    // Other runtime errors — signal failure.
+                    statusContinuation.yield(.failed)
                 }
             }
         }
@@ -588,12 +593,12 @@ actor CaptureService {
             // React to external cameras being connected/disconnected.
             for await _ in deviceLookup.devicesChanged {
                 guard isSetUp else { continue }
-                let currentDevice = activeVideoInput?.device
-                let availableDevices = deviceLookup.cameras
+                let currentID = activeVideoInput?.device.uniqueID
+                let availableIDs = deviceLookup.cameras.map(\.uniqueID)
 
-                if let currentDevice, !availableDevices.contains(currentDevice) {
+                if let currentID, !availableIDs.contains(currentID) {
                     // Active camera was disconnected — switch to system preferred or first available.
-                    if let fallback = AVCaptureDevice.systemPreferredCamera ?? availableDevices.first {
+                    if let fallback = AVCaptureDevice.systemPreferredCamera ?? deviceLookup.cameras.first {
                         changeCaptureDevice(to: fallback)
                     }
                 }
@@ -601,11 +606,14 @@ actor CaptureService {
         }
 
         // Observe system-preferred camera changes (e.g. external camera connected on iPad).
+        // Only react if the new preferred device is not already part of the known rotation set,
+        // indicating a newly connected external camera that the system wants to use.
         Task {
             for await deviceID in systemPreferredCamera.changes {
                 guard isSetUp,
-                      let newCamera = AVCaptureDevice(uniqueID: deviceID),
-                      activeVideoInput?.device != newCamera else { continue }
+                      activeVideoInput?.device.uniqueID != deviceID,
+                      !deviceLookup.cameras.contains(where: { $0.uniqueID == deviceID }),
+                      let newCamera = AVCaptureDevice(uniqueID: deviceID) else { continue }
                 changeCaptureDevice(to: newCamera)
             }
         }

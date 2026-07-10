@@ -8,14 +8,15 @@
 import SwiftUI
 
 /// A view that presents a status message over the camera user interface.
-struct StatusOverlayView: View {
+struct StatusOverlayView<CameraModel: Camera>: View {
     @Environment(\.openURL) private var openURL
 
-	let status: CameraStatus
-    let handled: [CameraStatus] = [.unauthorized, .failed, .interrupted]
+    @State var camera: CameraModel
+    
+    private var isVisible: Bool { camera.status != .unknown && camera.status != .running }
     
 	var body: some View {
-		if handled.contains(status) {
+		if isVisible {
             ZStack {
                 Color.black.opacity(0.5)
                 
@@ -31,11 +32,22 @@ struct StatusOverlayView: View {
                         .foregroundStyle(.white)
                         .frame(maxWidth: .infinity, alignment: .leading)
                     
-                    if status == .unauthorized {
+                    if camera.status == .unauthorized {
                         Button {
                             openURL(URL(string: UIApplication.openSettingsURLString)!)
                         } label: {
                             Label("Ir a Ajustes", systemImage: "gear")
+                                .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .environment(\.isEnabled, true)
+                    }
+                    
+                    if camera.status == .failed {
+                        Button {
+                            Task { await camera.start() }
+                        } label: {
+                            Label("Reintentar", systemImage: "arrow.clockwise")
                                 .frame(maxWidth: .infinity)
                         }
                         .buttonStyle(.borderedProminent)
@@ -54,7 +66,7 @@ struct StatusOverlayView: View {
 	}
 	
 	var color: Color {
-		switch status {
+		switch camera.status {
         case .unauthorized: return .red
 		case .failed: return .orange
 		case .interrupted: return .yellow
@@ -63,13 +75,13 @@ struct StatusOverlayView: View {
 	}
 	
 	var message: String {
-		switch status {
+		switch camera.status {
 		case .unauthorized:
 			return String(localized: "No tenemos permiso para acceder a la cámara o al micrófono. \n\nCambia la configuración en ajustes.")
 		case .interrupted:
 			return String(localized: "Acceso a cámara interrumpido. \n\nAlgún proceso de mayor prioridad ha bloqueado el acceso.")
 		case .failed:
-			return String(localized: "Ha fallado el arranque de la cámara. \n\nPor favor prueba a relanzar la app.")
+			return String(localized: "Ha fallado el arranque de la cámara.")
 		default:
 			return ""
 		}
@@ -77,13 +89,13 @@ struct StatusOverlayView: View {
 }
 
 #Preview("Interrupted") {
-    StatusOverlayView(status: .interrupted)
+    StatusOverlayView(camera: PreviewCameraModel(status: .interrupted))
 }
 
 #Preview("Failed") {
-    StatusOverlayView(status: .failed)
+    StatusOverlayView(camera: PreviewCameraModel(status: .failed))
 }
 
 #Preview("Unauthorized") {
-    StatusOverlayView(status: .unauthorized)
+    StatusOverlayView(camera: PreviewCameraModel(status: .unauthorized))
 }

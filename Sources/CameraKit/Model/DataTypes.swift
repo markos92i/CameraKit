@@ -10,7 +10,7 @@ import AVFoundation
 // MARK: - Supporting types
 
 /// An enumeration that describes the current status of the camera.
-public enum CameraStatus {
+public enum CameraStatus: Sendable {
     /// The initial status upon creation.
     case unknown
     /// A status that indicates a person disallows access to the camera or microphone.

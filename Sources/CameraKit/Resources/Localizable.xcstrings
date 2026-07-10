@@ -167,7 +167,11 @@
         }
       }
     },
+    "Ha fallado el arranque de la cámara." : {
+
+    },
     "Ha fallado el arranque de la cámara. \n\nPor favor prueba a relanzar la app." : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -296,6 +300,9 @@
       }
     },
     "OK" : {
+
+    },
+    "Reintentar" : {
 
     },
     "Tarjetas" : {

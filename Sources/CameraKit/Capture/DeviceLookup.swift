@@ -23,7 +23,7 @@ final class DeviceLookup {
 
     init() {
         backCameraDiscoverySession = AVCaptureDevice.DiscoverySession(
-            deviceTypes: [.builtInDualCamera, .builtInWideAngleCamera],
+            deviceTypes: [.builtInTripleCamera, .builtInDualCamera, .builtInDualWideCamera, .builtInWideAngleCamera],
             mediaType: .video,
             position: .back
         )

@@ -179,7 +179,7 @@ public struct CameraView<CameraModel: Camera>: View {
     var CameraUI: some View {
         Color.clear
             .overlay {
-                StatusOverlayView(status: camera.status)
+                StatusOverlayView(camera: camera)
             }
             .overlay(alignment: .top) {
                 Indicators

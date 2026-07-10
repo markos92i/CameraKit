@@ -110,6 +110,7 @@ public final class CameraModel: Camera {
     // MARK: - Starting the camera
     
     /// Start the camera and begin the stream of data.
+    /// Can be called again to retry after a failure.
     public func start() async {
         guard await captureService.isAuthorized else {
             status = .unauthorized
@@ -118,10 +119,11 @@ public final class CameraModel: Camera {
         do {
             try await captureService.start(with: config)
             await captureService.startPreviewing()
-            observeState()
+            // Only set up state observers once.
+            if status != .running { observeState() }
             status = .running
         } catch {
-            print("Failed to start capture service. \(error)")
+            self.error = error
             status = .failed
         }
     }
@@ -272,6 +274,12 @@ public final class CameraModel: Camera {
         Task {
             for await filter in captureService.filterStream {
                 config.imageFilter = filter
+            }
+        }
+        
+        Task {
+            for await status in captureService.statusStream {
+                self.status = status
             }
         }
         
