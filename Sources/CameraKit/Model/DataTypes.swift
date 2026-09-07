@@ -85,11 +85,13 @@ public struct Photo: Sendable {
     ///
     /// This avoids recompression — the bytes from `AVCapturePhoto.fileDataRepresentation()`
     /// are persisted as-is (HEIC or JPEG depending on device settings).
+    /// The file extension is determined by inspecting the data's magic bytes.
     public func fileURL() -> URL? {
         guard let dir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else { return nil }
         let formatter = DateFormatter()
         formatter.dateFormat = "dd-MM-yyyy'_'HH'-'mm'-'ss"
-        let url = dir.appendingPathComponent("\(formatter.string(from: .now)).jpg")
+        let ext = data.imageFileExtension ?? "jpg"
+        let url = dir.appendingPathComponent("\(formatter.string(from: .now)).\(ext)")
         do {
             try data.write(to: url)
             return url
