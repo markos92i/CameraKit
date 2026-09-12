@@ -12,9 +12,15 @@ let package = Package(
             targets: ["CameraKit"]
         )
     ],
+    dependencies: [
+        .package(url: "https://github.com/markos92i/ZafirUI.git", branch: "main")
+    ],
     targets: [
         .target(
             name: "CameraKit",
+            dependencies: [
+                .product(name: "ZafirUI", package: "ZafirUI")
+            ],
             resources: [.process("Resources")]
         )
     ]

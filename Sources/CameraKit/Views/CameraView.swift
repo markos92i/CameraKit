@@ -193,6 +193,7 @@ public struct CameraView<CameraModel: Camera>: View {
             }
             .overlay(alignment: .bottom) {
                 CaptureModeView(camera: camera)
+                    .padding()
             }
             .overlay {
                 if captured || camera.isProcessing { Color.black.opacity(0.5) }
