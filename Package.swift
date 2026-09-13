@@ -13,7 +13,7 @@ let package = Package(
         )
     ],
     dependencies: [
-        .package(url: "https://github.com/markos92i/ZafirUI.git", branch: "main")
+        .package(url: "https://github.com/markos92i/ZafirUI.git", exact: "1.0.0")
     ],
     targets: [
         .target(
