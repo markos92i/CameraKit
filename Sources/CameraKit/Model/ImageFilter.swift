@@ -16,9 +16,9 @@ public enum ImageFilter: Int, Identifiable, CaseIterable, CustomStringConvertibl
         
     public var description: String {
         switch self {
-        case .none: String(localized: "Ninguno")
-        case .cards: String(localized: "Tarjetas")
-        case .text: String(localized: "Texto")
+        case .none: String(localized: "Ninguno", bundle: .module)
+        case .cards: String(localized: "Tarjetas", bundle: .module)
+        case .text: String(localized: "Texto", bundle: .module)
         }
     }
     

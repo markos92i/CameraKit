@@ -15,7 +15,7 @@ struct CameraSwitchButton<CameraModel: Camera>: View {
         Button {
             Task { await camera.switchVideoDevices() }
         } label: {
-            Label("cambiar cámara", systemImage: "arrow.trianglehead.2.clockwise.rotate.90")
+            Label(String(localized: "cambiar cámara", bundle: .module), systemImage: "arrow.trianglehead.2.clockwise.rotate.90")
         }
         .buttonStyle(CameraButtonStyle(size: .medium))
         .disabled(camera.captureActivity.isRecording)

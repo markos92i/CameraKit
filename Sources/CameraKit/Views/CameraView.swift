@@ -84,9 +84,9 @@ public struct CameraView<CameraModel: Camera>: View {
                 }
             }
             .alert(
-                "Error",
+                Text("Error", bundle: .module),
                 isPresented: Binding(get: { camera.error != nil }, set: { if !$0 { camera.error = nil } }),
-                actions: { Button("OK") { camera.error = nil } },
+                actions: { Button(String(localized: "OK", bundle: .module)) { camera.error = nil } },
                 message: { Text(camera.error?.localizedDescription ?? "") }
             )
     }
@@ -149,7 +149,7 @@ public struct CameraView<CameraModel: Camera>: View {
         Button {
             clear()
         } label: {
-            Label("borrar", systemImage: "trash")
+            Label(String(localized: "borrar", bundle: .module), systemImage: "trash")
         }
         .buttonStyle(CameraButtonStyle(size: .medium))
     }
@@ -170,7 +170,7 @@ public struct CameraView<CameraModel: Camera>: View {
                 }
             }
         } label: {
-            Label("hecho", systemImage: "checkmark")
+            Label(String(localized: "hecho", bundle: .module), systemImage: "checkmark")
         }
         .buttonStyle(CameraButtonStyle(size: .medium))
     }

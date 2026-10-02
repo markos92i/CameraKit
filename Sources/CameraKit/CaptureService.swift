@@ -250,7 +250,7 @@ actor CaptureService {
         // Filter picker
         let filters = ImageFilter.allCases
         let titles = filters.map(\.description)
-        let picker = AVCaptureIndexPicker("Filtro", symbolName: "camera.filters", localizedIndexTitles: titles)
+        let picker = AVCaptureIndexPicker(String(localized: "Filtro", bundle: .module), symbolName: "camera.filters", localizedIndexTitles: titles)
         picker.setActionQueue(sessionQueue) { [filterContinuation] index in
             filterContinuation.yield(filters[index])
         }

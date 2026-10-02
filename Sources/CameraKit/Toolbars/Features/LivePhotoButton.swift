@@ -14,7 +14,7 @@ struct LivePhotoButton<CameraModel: Camera>: View {
         Button {
             camera.config.isLivePhotoEnabled.toggle()
         } label: {
-            Label("live photo", systemImage: camera.config.isLivePhotoEnabled ? "livephoto" : "livephoto.slash")
+            Label(String(localized: "live photo", bundle: .module), systemImage: camera.config.isLivePhotoEnabled ? "livephoto" : "livephoto.slash")
         }
         .buttonStyle(CameraButtonStyle(size: .small))
     }

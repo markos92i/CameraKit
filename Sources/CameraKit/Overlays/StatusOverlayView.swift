@@ -36,7 +36,7 @@ struct StatusOverlayView<CameraModel: Camera>: View {
                         Button {
                             openURL(URL(string: UIApplication.openSettingsURLString)!)
                         } label: {
-                            Label("Ir a Ajustes", systemImage: "gear")
+                            Label(String(localized: "Ir a Ajustes", bundle: .module), systemImage: "gear")
                                 .frame(maxWidth: .infinity)
                         }
                         .buttonStyle(.borderedProminent)
@@ -47,7 +47,7 @@ struct StatusOverlayView<CameraModel: Camera>: View {
                         Button {
                             Task { await camera.start() }
                         } label: {
-                            Label("Reintentar", systemImage: "arrow.clockwise")
+                            Label(String(localized: "Reintentar", bundle: .module), systemImage: "arrow.clockwise")
                                 .frame(maxWidth: .infinity)
                         }
                         .buttonStyle(.borderedProminent)
@@ -77,11 +77,11 @@ struct StatusOverlayView<CameraModel: Camera>: View {
 	var message: String {
 		switch camera.status {
 		case .unauthorized:
-			return String(localized: "No tenemos permiso para acceder a la cámara o al micrófono. \n\nCambia la configuración en ajustes.")
+			return String(localized: "No tenemos permiso para acceder a la cámara o al micrófono. \n\nCambia la configuración en ajustes.", bundle: .module)
 		case .interrupted:
-			return String(localized: "Acceso a cámara interrumpido. \n\nAlgún proceso de mayor prioridad ha bloqueado el acceso.")
+			return String(localized: "Acceso a cámara interrumpido. \n\nAlgún proceso de mayor prioridad ha bloqueado el acceso.", bundle: .module)
 		case .failed:
-			return String(localized: "Ha fallado el arranque de la cámara.")
+			return String(localized: "Ha fallado el arranque de la cámara.", bundle: .module)
 		default:
 			return ""
 		}
