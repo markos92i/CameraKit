@@ -50,7 +50,22 @@ public struct CaptureMetadata: Identifiable, Sendable, Equatable {
 }
 
 extension CaptureMetadata {
-    var crop: CIImage { image.perspective(points: CGPointUtils.scale(coordinates, to: image.extent.size)) }
+    public var crop: CIImage { image.perspective(points: CGPointUtils.scale(coordinates, to: image.extent.size)) }
+    
+    /// Writes the cropped image to a file and returns its URL.
+    public func writeCrop(compressionQuality: CGFloat = 0.9) -> URL? {
+        let context = CIContext()
+        guard let cgImage = context.createCGImage(crop, from: crop.extent) else { return nil }
+        let uiImage = UIImage(cgImage: cgImage)
+        guard let data = uiImage.jpegData(compressionQuality: compressionQuality) else { return nil }
+        let timestamp = Date.now.formatted(
+            .verbatim("\(year: .padded(4))\(month: .twoDigits)\(day: .twoDigits)_\(hour: .twoDigits(clock: .twentyFourHour, hourCycle: .zeroBased))\(minute: .twoDigits)\(second: .twoDigits)", timeZone: .current, calendar: .current)
+        )
+        let url = URL.documentsDirectory.appending(path: "cropped_\(timestamp).jpg")
+        guard (try? data.write(to: url)) != nil else { return nil }
+        return url
+    }
+    
     var flippedPoints: [CGPoint] {
         CGPointUtils.flipVertically(CGPointUtils.scale(coordinates, to: image.extent.size), extent: image.extent)
     }
