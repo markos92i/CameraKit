@@ -159,8 +159,14 @@ public struct CameraView<CameraModel: Camera>: View {
         Button {
             Task {
                 switch camera.captureSnapshot {
-                case .photo(_, let raw, let metadata):
-                    if let url = raw.fileURL() {
+                case .photo(_, let raw, let croppedData, let metadata):
+                    let url: URL?
+                    if let croppedData {
+                        url = writeCroppedFile(croppedData)
+                    } else {
+                        url = raw.fileURL()
+                    }
+                    if let url {
                         handler?(.photo(url: url, metadata: metadata))
                     }
                 case .video(let url):
@@ -173,6 +179,20 @@ public struct CameraView<CameraModel: Camera>: View {
             Label("hecho", systemImage: "checkmark")
         }
         .buttonStyle(CameraButtonStyle(size: .medium))
+    }
+    
+    /// Writes cropped JPEG data to a file and returns its URL (mirrors `Photo.fileURL()` logic).
+    private func writeCroppedFile(_ data: Data) -> URL? {
+        guard let dir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else { return nil }
+        let formatter = DateFormatter()
+        formatter.dateFormat = "dd-MM-yyyy'_'HH'-'mm'-'ss"
+        let url = dir.appendingPathComponent("\(formatter.string(from: .now)).jpg")
+        do {
+            try data.write(to: url)
+            return url
+        } catch {
+            return nil
+        }
     }
             
     @ViewBuilder

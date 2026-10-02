@@ -171,13 +171,21 @@ public final class CameraModel: Camera {
             let photo = try await captureService.capturePhoto(with: config)
             if config.savesToGallery { try await mediaLibrary.save(photo: photo) }
             
-            let preview: UIImage? = switch config.imageFilter {
-            case .cards: await cropCard(from: photo.data)
-            default: UIImage(data: photo.data)
+            let preview: UIImage?
+            let croppedData: Data?
+            
+            switch config.imageFilter {
+            case .cards:
+                let croppedImage = await cropCard(from: photo.data)
+                preview = croppedImage
+                croppedData = croppedImage?.jpegData(compressionQuality: 0.9)
+            default:
+                preview = UIImage(data: photo.data)
+                croppedData = nil
             }
             
             if let preview {
-                captureSnapshot = .photo(preview: preview, raw: photo, metadata: snapshotMetadata)
+                captureSnapshot = .photo(preview: preview, raw: photo, croppedData: croppedData, metadata: snapshotMetadata)
             }
             
             return photo

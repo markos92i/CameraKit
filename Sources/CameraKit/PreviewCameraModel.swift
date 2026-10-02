@@ -64,7 +64,7 @@ public final class PreviewCameraModel: Camera {
 
         guard let data = image.jpegData(compressionQuality: 0.8) else { return nil }
         let photo = Photo(data: data, isProxy: false, livePhotoMovieURL: nil)
-        captureSnapshot = .photo(preview: image, raw: photo, metadata: featureMetadata)
+        captureSnapshot = .photo(preview: image, raw: photo, croppedData: nil, metadata: featureMetadata)
         return photo
     }
 
