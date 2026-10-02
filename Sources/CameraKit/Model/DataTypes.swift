@@ -60,8 +60,8 @@ public enum CaptureMode: String, Identifiable, CaseIterable, CustomStringConvert
     
     public var description: String {
         switch self {
-        case .photo: String(localized: "foto")
-        case .video: String(localized: "video")
+        case .photo: String(localized: "foto", bundle: .module)
+        case .video: String(localized: "video", bundle: .module)
         }
     }
 
@@ -128,9 +128,9 @@ public enum QualityPrioritization: Int, Identifiable, CaseIterable, CustomString
     
     public var description: String {
         switch self {
-        case .speed: String(localized: "Velocidad")
-        case .balanced: String(localized: "Equilibrado")
-        case .quality: String(localized: "Calidad")
+        case .speed: String(localized: "Velocidad", bundle: .module)
+        case .balanced: String(localized: "Equilibrado", bundle: .module)
+        case .quality: String(localized: "Calidad", bundle: .module)
         }
     }
     

@@ -14,7 +14,7 @@ struct HDRButton<CameraModel: Camera>: View {
         Button {
             camera.config.isHDRVideoEnabled.toggle()
         } label: {
-            Label("HDR", systemImage: camera.config.isHDRVideoEnabled ? "sparkles.rectangle.stack.fill" : "sparkles.rectangle.stack")
+            Label(String(localized: "HDR", bundle: .module), systemImage: camera.config.isHDRVideoEnabled ? "sparkles.rectangle.stack.fill" : "sparkles.rectangle.stack")
         }
         .buttonStyle(CameraButtonStyle(size: .small))
         .disabled(camera.captureActivity.isRecording)

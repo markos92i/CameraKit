@@ -11,7 +11,7 @@ import SwiftUI
 struct LiveBadge: View {
     var body: some View {
         Group {
-            Text("LIVE")
+            Text("LIVE", bundle: .module)
                 .padding(6)
                 .foregroundStyle(.white)
                 .font(.subheadline.bold())

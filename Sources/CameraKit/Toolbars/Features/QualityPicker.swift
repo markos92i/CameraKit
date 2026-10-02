@@ -12,13 +12,15 @@ struct QualityPicker<CameraModel: Camera>: View {
     
     var body: some View {
         Menu {
-            Picker("calidad", selection: $camera.config.qualityPrioritization) {
+            Picker(selection: $camera.config.qualityPrioritization) {
                 ForEach(QualityPrioritization.allCases) {
                     Text($0.description)
                 }
+            } label: {
+                Text("calidad", bundle: .module)
             }
         } label: {
-            Label("cambiar calidad", systemImage: camera.config.qualityPrioritization.systemName)
+            Label(String(localized: "cambiar calidad", bundle: .module), systemImage: camera.config.qualityPrioritization.systemName)
                 .labelStyle(CameraButtonLabel(size: .small, icon: true, text: false))
         }
     }
