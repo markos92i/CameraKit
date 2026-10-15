@@ -148,6 +148,7 @@ actor CaptureService {
         // Configure the session and start it.
         try setUpSession()
         captureSession.startRunning()
+        applyCurrentRotation()
     }
     
     func stop() {
@@ -188,7 +189,12 @@ actor CaptureService {
             // Add the preview output.
             try addOutput(previewCapture.output)
 
+            // Set preview mirroring once for the initial device (front camera is mirrored).
+            updatePreviewMirroring()
+
             // Configure a rotation coordinator for the default video device.
+            // The initial rotation is applied asynchronously (see `start()`) to avoid
+            // mutating connections while `addInput`/`addOutput` is still committing the graph.
             createRotationCoordinator(for: defaultCamera)
             // Observe changes to the default camera's subject area.
             observeSubjectAreaChanges(of: defaultCamera)
@@ -326,7 +332,12 @@ actor CaptureService {
         captureSession.removeInput(currentInput)
         do {
             activeVideoInput = try addInput(for: device)
+            // Refresh preview mirroring for the new device.
+            updatePreviewMirroring()
             createRotationCoordinator(for: device)
+            // Rotation is a direct connection assignment, safe to apply within this
+            // configuration transaction (unlike initial setup, which races with addInput).
+            applyCurrentRotation()
             observeSubjectAreaChanges(of: device)
             updateCaptureCapabilities()
         } catch {
@@ -339,16 +350,12 @@ actor CaptureService {
     /// Create a new rotation coordinator for the specified device and observe its state to monitor rotation changes.
     private func createRotationCoordinator(for device: AVCaptureDevice) {
         guard let previewLayer = previewLayers.first else { return }
+
+        invalidateRotationObservers()
+
         // Create a new rotation coordinator for this device.
         rotationCoordinator = AVCaptureDevice.RotationCoordinator(device: device, previewLayer: previewLayer)
-        
-        // Set initial rotation state on the preview and output connections.
-        updatePreviewRotation(rotationCoordinator.videoRotationAngleForHorizonLevelPreview)
-        updateCaptureRotation(rotationCoordinator.videoRotationAngleForHorizonLevelCapture)
-        
-        // Cancel previous observations.
-        rotationObservers.removeAll()
-        
+
         // Add observers to monitor future changes.
         rotationObservers.append(
             rotationCoordinator.observe(\.videoRotationAngleForHorizonLevelPreview, options: .new) { [weak self] _, change in
@@ -356,7 +363,7 @@ actor CaptureService {
                 Task { await self.updatePreviewRotation(angle) }
             }
         )
-        
+
         rotationObservers.append(
             rotationCoordinator.observe(\.videoRotationAngleForHorizonLevelCapture, options: .new) { [weak self] _, change in
                 guard let self, let angle = change.newValue else { return }
@@ -364,31 +371,40 @@ actor CaptureService {
             }
         )
     }
-    
+
+    private func applyCurrentRotation() {
+        guard let coordinator = rotationCoordinator else { return }
+        updatePreviewRotation(coordinator.videoRotationAngleForHorizonLevelPreview)
+        updateCaptureRotation(coordinator.videoRotationAngleForHorizonLevelCapture)
+    }
+
+    private func invalidateRotationObservers() {
+        for observer in rotationObservers {
+            (observer as? NSKeyValueObservation)?.invalidate()
+        }
+        rotationObservers.removeAll()
+    }
+
     private func updatePreviewRotation(_ angle: CGFloat) {
-        guard let videoConnection = previewCapture.output.connection(with: .video),
-              let videoInput = activeVideoInput else { return }
+        guard let videoConnection = previewCapture.output.connection(with: .video) else { return }
 
-        do {
-            try currentDevice.lockForConfiguration()
-            if videoConnection.isVideoRotationAngleSupported(angle) {
-                videoConnection.videoRotationAngle = angle
-            }
-
-            // Determine whether to mirror the video image.
-            let isVideoMirrored = videoInput.device.position == .front
-            if videoConnection.isVideoMirroringSupported && isVideoMirrored {
-                videoConnection.isVideoMirrored = isVideoMirrored
-            }
-            currentDevice.unlockForConfiguration()
-        } catch {
-            print("Unable to update preview rotation. \(error)")
+        if videoConnection.isVideoRotationAngleSupported(angle) {
+            videoConnection.videoRotationAngle = angle
         }
     }
     
     private func updateCaptureRotation(_ angle: CGFloat) {
         // Update the orientation for all output services.
         outputServices.forEach { $0.setVideoRotationAngle(angle) }
+    }
+
+    /// Mirrors the preview connection for front-facing cameras. Called once when an input is
+    /// added or the device changes, not on every rotation.
+    private func updatePreviewMirroring() {
+        guard let videoConnection = previewCapture.output.connection(with: .video),
+              let device = activeVideoInput?.device,
+              videoConnection.isVideoMirroringSupported else { return }
+        videoConnection.isVideoMirrored = device.position == .front
     }
         
     // MARK: - Automatic focus and exposure
