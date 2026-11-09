@@ -153,12 +153,12 @@ public enum CameraError: Error, LocalizedError {
     
     public var errorDescription: String? {
         switch self {
-        case .videoDeviceUnavailable: "No se ha encontrado una cámara disponible."
-        case .audioDeviceUnavailable: "No se ha encontrado un micrófono disponible."
-        case .addInputFailed: "No se ha podido configurar la entrada de la cámara."
-        case .addOutputFailed: "No se ha podido configurar la salida de captura."
-        case .setupFailed: "No se ha podido iniciar la cámara."
-        case .deviceChangeFailed: "No se ha podido cambiar de cámara."
+        case .videoDeviceUnavailable: String(localized: "No se ha encontrado una cámara disponible.", bundle: .module)
+        case .audioDeviceUnavailable: String(localized: "No se ha encontrado un micrófono disponible.", bundle: .module)
+        case .addInputFailed: String(localized: "No se ha podido configurar la entrada de la cámara.", bundle: .module)
+        case .addOutputFailed: String(localized: "No se ha podido configurar la salida de captura.", bundle: .module)
+        case .setupFailed: String(localized: "No se ha podido iniciar la cámara.", bundle: .module)
+        case .deviceChangeFailed: String(localized: "No se ha podido cambiar de cámara.", bundle: .module)
         }
     }
 }

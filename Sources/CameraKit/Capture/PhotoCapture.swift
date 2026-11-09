@@ -14,8 +14,8 @@ enum PhotoCaptureError: Error, LocalizedError {
     
     var errorDescription: String? {
         switch self {
-        case .noVideoConnection: "No se ha podido capturar la foto. La cámara no está lista."
-        case .noPhotoData: "La captura no ha producido datos de imagen."
+        case .noVideoConnection: String(localized: "No se ha podido capturar la foto. La cámara no está lista.", bundle: .module)
+        case .noPhotoData: String(localized: "La captura no ha producido datos de imagen.", bundle: .module)
         }
     }
 }

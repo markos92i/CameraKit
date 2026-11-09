@@ -16,8 +16,8 @@ enum MovieCaptureError: Error, LocalizedError {
     
     var errorDescription: String? {
         switch self {
-        case .noVideoConnection: "No se ha podido iniciar la grabación. La cámara no está lista."
-        case .alreadyRecording: "Ya hay una grabación en curso."
+        case .noVideoConnection: String(localized: "No se ha podido iniciar la grabación. La cámara no está lista.", bundle: .module)
+        case .alreadyRecording: String(localized: "Ya hay una grabación en curso.", bundle: .module)
         }
     }
 }

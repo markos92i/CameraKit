@@ -1,0 +1,15 @@
+{
+  "originHash" : "23397f0d02e0fda50c5b63490bc7baa792f2f1f03cf75c2071d7661dd9fc5df0",
+  "pins" : [
+    {
+      "identity" : "zafirui",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/markos92i/ZafirUI.git",
+      "state" : {
+        "revision" : "8a599c096f9ffef5ff94c16995f0e65740b70665",
+        "version" : "1.0.0"
+      }
+    }
+  ],
+  "version" : 3
+}
