@@ -10,6 +10,15 @@ import AVFoundation
 
 struct SendableDisplayLayer: @unchecked Sendable {
     let layer: AVSampleBufferDisplayLayer
+    /// Read here, on the main actor, where the layer exposes it. The renderer
+    /// itself accepts sample buffers from the capture queue.
+    let renderer: AVSampleBufferVideoRenderer
+
+    @MainActor
+    init(layer: AVSampleBufferDisplayLayer) {
+        self.layer = layer
+        self.renderer = layer.sampleBufferRenderer
+    }
 }
 
 /// An object that provides the interface to the features of the camera.

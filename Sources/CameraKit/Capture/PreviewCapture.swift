@@ -43,8 +43,8 @@ final class PreviewCapture: OutputService {
     // MARK: - Preview a camera
     
     /// Starts movie recording.
-    func startPreviewing(previewLayers: [AVSampleBufferDisplayLayer], queue: DispatchQueue) {
-        delegate = PreviewCaptureDelegate(sendPreviewStream: sendPreviewStream, previewLayers: previewLayers)
+    func startPreviewing(renderers: [AVSampleBufferVideoRenderer], queue: DispatchQueue) {
+        delegate = PreviewCaptureDelegate(sendPreviewStream: sendPreviewStream, renderers: renderers)
         
         previewOutput.setSampleBufferDelegate(delegate, queue: queue)
         previewOutput.alwaysDiscardsLateVideoFrames = true
@@ -59,15 +59,15 @@ final class PreviewCapture: OutputService {
     /// A delegate object that responds to the capture output sampleBuffer.
     private class PreviewCaptureDelegate: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
         var sendPreviewStream: ((sending CIImage) -> Void)?
-        var previewLayers: [AVSampleBufferDisplayLayer]
+        var renderers: [AVSampleBufferVideoRenderer]
         
-        init(sendPreviewStream: ((sending CIImage) -> Void)? = nil, previewLayers: [AVSampleBufferDisplayLayer]) {
+        init(sendPreviewStream: ((sending CIImage) -> Void)? = nil, renderers: [AVSampleBufferVideoRenderer]) {
             self.sendPreviewStream = sendPreviewStream
-            self.previewLayers = previewLayers
+            self.renderers = renderers
         }
 
         func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
-            previewLayers.forEach { $0.sampleBufferRenderer.enqueue(sampleBuffer) }
+            renderers.forEach { $0.enqueue(sampleBuffer) }
 
             guard let pixelBuffer = sampleBuffer.imageBuffer else { return }
 

@@ -71,6 +71,7 @@ actor CaptureService {
     private var rotationCoordinator: AVCaptureDevice.RotationCoordinator!
     private var rotationObservers = [AnyObject]()
     private let previewLayers: [AVSampleBufferDisplayLayer]
+    private let previewRenderers: [AVSampleBufferVideoRenderer]
 
     // An observer for system-preferred camera changes.
     private let systemPreferredCamera = SystemPreferredCameraObserver()
@@ -87,7 +88,8 @@ actor CaptureService {
     }
 
     init(previewLayers: [SendableDisplayLayer]) {
-        self.previewLayers = previewLayers.compactMap { $0.layer }
+        self.previewLayers = previewLayers.map(\.layer)
+        self.previewRenderers = previewLayers.map(\.renderer)
         previewStream = previewCapture.previewStream
         
         let (actStream, actCont) = AsyncStream.makeStream(of: CaptureActivity.self)
@@ -534,7 +536,7 @@ actor CaptureService {
     
     // MARK: - Preview capture
     func startPreviewing() {
-        previewCapture.startPreviewing(previewLayers: previewLayers, queue: sessionQueue)
+        previewCapture.startPreviewing(renderers: previewRenderers, queue: sessionQueue)
     }
     
     func stopPreviewing() {
